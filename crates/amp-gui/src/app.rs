@@ -34,6 +34,7 @@ pub struct AmpApp {
     config: AppConfig,
     config_path: PathBuf,
     settings_status: Option<String>,
+    status_bar_message: Option<(String, bool)>, // (message, is_error)
     service_manager: Arc<Mutex<ServiceManager>>,
     manifest: Option<VersionManifest>,
     installed_versions: Vec<(ServiceType, Vec<String>)>,
@@ -83,6 +84,7 @@ impl AmpApp {
             config,
             config_path,
             settings_status: None,
+            status_bar_message: Some(("Sistema pronto e inicializado.".to_string(), false)),
             service_manager,
             manifest,
             installed_versions: Vec::new(),
@@ -116,12 +118,13 @@ impl AmpApp {
     fn start_package_download(&mut self, item: PackageItem) {
         let (tx, rx) = mpsc::channel(64);
         let pkg_label = format!("{} v{}", item.id, item.version);
-        self.active_download = Some((pkg_label, DownloadState::Downloading {
+        self.active_download = Some((pkg_label.clone(), DownloadState::Downloading {
             downloaded_bytes: 0,
             total_bytes: item.size_bytes,
             percent: 0.0,
         }));
         self.download_rx = Some(rx);
+        self.status_bar_message = Some((format!("A descarregar {}", pkg_label), false));
 
         let destination = self.config.bin_dir.clone();
         self.tokio_handle.spawn(async move {
@@ -138,28 +141,75 @@ impl AmpApp {
             (ServiceType::Postgresql, self.config.postgresql_port),
         ];
 
-        if let Ok(mut sm) = self.service_manager.lock() {
-            match action {
-                ServiceAction::Start(st) => {
-                    let port = ports.iter().find(|(t, _)| *t == st).map(|(_, p)| *p).unwrap_or(st.default_port());
-                    let _ = sm.start_service(st, "default", port);
-                }
-                ServiceAction::Stop(st) => {
-                    let _ = sm.stop_service(st);
-                }
-                ServiceAction::Restart(st) => {
-                    let port = ports.iter().find(|(t, _)| *t == st).map(|(_, p)| *p).unwrap_or(st.default_port());
-                    let _ = sm.stop_service(st);
-                    let _ = sm.start_service(st, "default", port);
-                }
-                ServiceAction::StartAll => {
-                    for (st, port) in ports {
-                        let _ = sm.start_service(st, "default", port);
+        match action {
+            ServiceAction::Start(st) => {
+                let port = ports.iter().find(|(t, _)| *t == st).map(|(_, p)| *p).unwrap_or(st.default_port());
+                if let Ok(mut sm) = self.service_manager.lock() {
+                    match sm.start_service(st, "default", port) {
+                        Ok(()) => {
+                            self.status_bar_message = Some((
+                                format!("{} iniciado com sucesso na porta {}", st.display_name(), port),
+                                false,
+                            ));
+                        }
+                        Err(err) => {
+                            self.status_bar_message = Some((
+                                format!("Falha ao iniciar {}: {}", st.display_name(), err),
+                                true,
+                            ));
+                        }
                     }
                 }
-                ServiceAction::StopAll => {
-                    sm.stop_all();
+            }
+            ServiceAction::Stop(st) => {
+                if let Ok(mut sm) = self.service_manager.lock() {
+                    let _ = sm.stop_service(st);
+                    self.status_bar_message = Some((format!("{} parado.", st.display_name()), false));
                 }
+            }
+            ServiceAction::Restart(st) => {
+                let port = ports.iter().find(|(t, _)| *t == st).map(|(_, p)| *p).unwrap_or(st.default_port());
+                if let Ok(mut sm) = self.service_manager.lock() {
+                    let _ = sm.stop_service(st);
+                    match sm.start_service(st, "default", port) {
+                        Ok(()) => {
+                            self.status_bar_message = Some((
+                                format!("{} reiniciado na porta {}", st.display_name(), port),
+                                false,
+                            ));
+                        }
+                        Err(err) => {
+                            self.status_bar_message = Some((
+                                format!("Falha ao reiniciar {}: {}", st.display_name(), err),
+                                true,
+                            ));
+                        }
+                    }
+                }
+            }
+            ServiceAction::StartAll => {
+                let mut errors = Vec::new();
+                if let Ok(mut sm) = self.service_manager.lock() {
+                    for (st, port) in ports {
+                        if let Err(err) = sm.start_service(st, "default", port) {
+                            errors.push(format!("{}: {}", st.display_name(), err));
+                        }
+                    }
+                }
+                if errors.is_empty() {
+                    self.status_bar_message = Some(("Todos os serviços iniciados com sucesso.".to_string(), false));
+                } else {
+                    self.status_bar_message = Some((format!("Erros ao iniciar: {}", errors.join("; ")), true));
+                }
+            }
+            ServiceAction::StopAll => {
+                if let Ok(mut sm) = self.service_manager.lock() {
+                    sm.stop_all();
+                    self.status_bar_message = Some(("Todos os serviços foram parados.".to_string(), false));
+                }
+            }
+            ServiceAction::OpenPhpServersTab => {
+                self.current_tab = ActiveTab::PhpServers;
             }
         }
     }
@@ -170,18 +220,34 @@ impl AmpApp {
                 if let Some(inst) = self.config.php_servers.iter().find(|s| s.id == id).cloned() {
                     let php_ver = self.config.active_php_version.as_deref();
                     if let Ok(mut sm) = self.service_manager.lock() {
-                        let _ = sm.start_php_server(&inst, php_ver);
+                        match sm.start_php_server(&inst, php_ver) {
+                            Ok(()) => {
+                                self.status_bar_message = Some((
+                                    format!("Servidor PHP '{}' ativo em http://{}:{}", inst.name, inst.host, inst.port),
+                                    false,
+                                ));
+                            }
+                            Err(err) => {
+                                self.status_bar_message = Some((
+                                    format!("Falha ao iniciar servidor PHP '{}': {}", inst.name, err),
+                                    true,
+                                ));
+                            }
+                        }
                     }
                 }
             }
             PhpServerAction::Stop(id) => {
                 if let Ok(mut sm) = self.service_manager.lock() {
                     let _ = sm.stop_php_server(&id);
+                    self.status_bar_message = Some(("Servidor PHP parado.".to_string(), false));
                 }
             }
             PhpServerAction::Add(instance) => {
+                let name = instance.name.clone();
                 self.config.php_servers.push(instance);
                 let _ = self.config.save(&self.config_path);
+                self.status_bar_message = Some((format!("Nova instância '{}' criada.", name), false));
             }
             PhpServerAction::Remove(id) => {
                 if let Ok(mut sm) = self.service_manager.lock() {
@@ -189,6 +255,7 @@ impl AmpApp {
                 }
                 self.config.php_servers.retain(|s| s.id != id);
                 let _ = self.config.save(&self.config_path);
+                self.status_bar_message = Some(("Instância de servidor PHP removida.".to_string(), false));
             }
         }
     }
@@ -200,9 +267,13 @@ impl eframe::App for AmpApp {
         let mut should_refresh_after_dl = false;
         if let Some(rx) = &mut self.download_rx {
             while let Ok(state) = rx.try_recv() {
-                if let Some((_name, current_state)) = &mut self.active_download {
+                if let Some((name, current_state)) = &mut self.active_download {
                     *current_state = state.clone();
-                    if matches!(state, DownloadState::Completed | DownloadState::Failed(_)) {
+                    if matches!(state, DownloadState::Completed) {
+                        self.status_bar_message = Some((format!("✓ Download de {} concluído com sucesso!", name), false));
+                        should_refresh_after_dl = true;
+                    } else if let DownloadState::Failed(err) = &state {
+                        self.status_bar_message = Some((format!("⚠ Erro no download de {}: {}", name, err), true));
                         should_refresh_after_dl = true;
                     }
                 }
@@ -218,6 +289,54 @@ impl eframe::App for AmpApp {
         } else {
             ctx.set_visuals(Visuals::dark());
         }
+
+        // --- Bottom Status Bar Panel ---
+        egui::TopBottomPanel::bottom("bottom_status_bar")
+            .exact_height(28.0)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    if let Some((msg, is_error)) = &self.status_bar_message {
+                        let dot_color = if *is_error {
+                            Color32::from_rgb(239, 68, 68)
+                        } else {
+                            Color32::from_rgb(34, 197, 94)
+                        };
+
+                        ui.label(RichText::new("●").color(dot_color).size(12.0));
+                        ui.label(
+                            RichText::new(msg)
+                                .color(if *is_error {
+                                    Color32::from_rgb(248, 113, 113)
+                                } else {
+                                    Color32::from_rgb(209, 213, 219)
+                                })
+                                .size(12.0),
+                        );
+
+                        if *is_error {
+                            if ui
+                                .button(
+                                    RichText::new("📜 Ver Logs")
+                                        .color(Color32::from_rgb(96, 165, 250))
+                                        .underline()
+                                        .size(11.0),
+                                )
+                                .clicked()
+                            {
+                                self.current_tab = ActiveTab::Logs;
+                            }
+                        }
+                    }
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(
+                            RichText::new("AMP Control v0.1.0 • Pronto")
+                                .color(Color32::DARK_GRAY)
+                                .size(11.0),
+                        );
+                    });
+                });
+            });
 
         // Left Navigation Sidebar
         egui::SidePanel::left("nav_panel")
@@ -308,6 +427,7 @@ impl eframe::App for AmpApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             let mut services_info = Vec::new();
             let mut logs = Vec::new();
+            let mut active_php_servers_count = 0;
 
             if let Ok(sm) = self.service_manager.lock() {
                 services_info.push(sm.get_service_info(ServiceType::Apache));
@@ -316,6 +436,12 @@ impl eframe::App for AmpApp {
                 services_info.push(sm.get_service_info(ServiceType::Mysql));
                 services_info.push(sm.get_service_info(ServiceType::Postgresql));
                 logs = sm.get_recent_logs();
+
+                for inst in &self.config.php_servers {
+                    if sm.is_php_server_running(&inst.id) {
+                        active_php_servers_count += 1;
+                    }
+                }
             }
 
             match self.current_tab {
@@ -325,6 +451,7 @@ impl eframe::App for AmpApp {
                         &self.i18n,
                         &services_info,
                         &self.config,
+                        active_php_servers_count,
                         &mut service_actions,
                     );
                 }
@@ -401,12 +528,14 @@ impl eframe::App for AmpApp {
                 SettingsAction::Save => {
                     let _ = self.config.save(&self.config_path);
                     self.settings_status = Some(self.i18n.t("settings_saved").to_string());
+                    self.status_bar_message = Some(("Definições guardadas com sucesso.".to_string(), false));
                 }
                 SettingsAction::ResetDefaults => {
                     self.config.reset_to_defaults();
                     let _ = self.config.save(&self.config_path);
                     self.i18n.set_language(&self.config.language);
                     self.settings_status = Some("Valores por omissão restaurados!".to_string());
+                    self.status_bar_message = Some(("Valores por omissão restaurados.".to_string(), false));
                 }
             }
         }

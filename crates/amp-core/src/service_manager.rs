@@ -19,6 +19,7 @@ pub struct ServiceManager {
     base_bin_dir: PathBuf,
     active_processes: HashMap<ServiceType, Child>,
     active_ports: HashMap<ServiceType, u16>,
+    service_errors: HashMap<ServiceType, String>,
     php_server_processes: HashMap<String, (Child, u16)>, // instance_id -> (Child, port)
     log_sender: broadcast::Sender<LogMessage>,
     recent_logs: Arc<Mutex<Vec<LogMessage>>>,
@@ -31,6 +32,7 @@ impl ServiceManager {
             base_bin_dir,
             active_processes: HashMap::new(),
             active_ports: HashMap::new(),
+            service_errors: HashMap::new(),
             php_server_processes: HashMap::new(),
             log_sender,
             recent_logs: Arc::new(Mutex::new(Vec::new())),
@@ -89,6 +91,8 @@ impl ServiceManager {
             } else {
                 ServiceStatus::Starting
             }
+        } else if let Some(err) = self.service_errors.get(&service) {
+            ServiceStatus::Error(err.clone())
         } else if PortChecker::is_port_in_use(port) {
             ServiceStatus::Running { pid: 0, port }
         } else {
@@ -114,13 +118,27 @@ impl ServiceManager {
             return Ok(());
         }
 
+        self.service_errors.remove(&service);
+
         if PortChecker::is_port_in_use(port) {
-            let err = format!("Porta {} já está ocupada por outro processo!", port);
-            self.add_log(service.display_name(), &err, true);
+            let err = format!(
+                "Porta {} já ocupada por outro processo ou serviço!",
+                port
+            );
+            self.service_errors.insert(service, err.clone());
+            self.add_log(service.display_name(), &format!("⚠ {}", err), true);
             return Err(err);
         }
 
-        let bin_path = self.locate_binary(service, version)?;
+        let bin_path = match self.locate_binary(service, version) {
+            Ok(p) => p,
+            Err(e) => {
+                self.service_errors.insert(service, e.clone());
+                self.add_log(service.display_name(), &format!("⚠ {}", e), true);
+                return Err(e);
+            }
+        };
+
         self.add_log(
             service.display_name(),
             &format!("Iniciando {} (v{}) na porta {}...", service.display_name(), version, port),
@@ -132,9 +150,6 @@ impl ServiceManager {
 
         match service {
             ServiceType::Apache => {
-                #[cfg(windows)]
-                cmd.args(["-D", "FOREGROUND"]);
-                #[cfg(not(windows))]
                 cmd.args(["-D", "FOREGROUND"]);
             }
             ServiceType::Mysql | ServiceType::Mariadb => {
@@ -154,22 +169,25 @@ impl ServiceManager {
                 let pid = child.id();
                 self.active_processes.insert(service, child);
                 self.active_ports.insert(service, port);
+                self.service_errors.remove(&service);
                 self.add_log(
                     service.display_name(),
-                    &format!("Iniciado com sucesso (PID: {})", pid),
+                    &format!("Iniciado com sucesso (PID: {}) na porta {}", pid, port),
                     false,
                 );
                 Ok(())
             }
             Err(e) => {
-                let err = format!("Falha ao iniciar {}: {}", service.display_name(), e);
-                self.add_log(service.display_name(), &err, true);
+                let err = format!("Falha de execução de {}: {}", service.display_name(), e);
+                self.service_errors.insert(service, err.clone());
+                self.add_log(service.display_name(), &format!("⚠ {}", err), true);
                 Err(err)
             }
         }
     }
 
     pub fn stop_service(&mut self, service: ServiceType) -> Result<(), String> {
+        self.service_errors.remove(&service);
         if let Some(mut child) = self.active_processes.remove(&service) {
             self.add_log(
                 service.display_name(),
@@ -206,12 +224,19 @@ impl ServiceManager {
         }
 
         if PortChecker::is_port_in_use(instance.port) {
-            let err = format!("Porta {} já em uso para '{}'!", instance.port, instance.name);
-            self.add_log(&instance.name, &err, true);
+            let err = format!("Porta {} já ocupada para '{}'!", instance.port, instance.name);
+            self.add_log(&instance.name, &format!("⚠ {}", err), true);
             return Err(err);
         }
 
-        let php_bin = self.locate_php_cli(php_version)?;
+        let php_bin = match self.locate_php_cli(php_version) {
+            Ok(p) => p,
+            Err(e) => {
+                self.add_log(&instance.name, &format!("⚠ {}", e), true);
+                return Err(e);
+            }
+        };
+
         let bind_addr = format!("{}:{}", instance.host, instance.port);
 
         self.add_log(
@@ -241,7 +266,7 @@ impl ServiceManager {
             }
             Err(e) => {
                 let err = format!("Erro ao iniciar servidor PHP '{}': {}", instance.name, e);
-                self.add_log(&instance.name, &err, true);
+                self.add_log(&instance.name, &format!("⚠ {}", err), true);
                 Err(err)
             }
         }
@@ -260,8 +285,8 @@ impl ServiceManager {
         let services = [
             ServiceType::Apache,
             ServiceType::Php,
-            ServiceType::Mysql,
             ServiceType::Mariadb,
+            ServiceType::Mysql,
             ServiceType::Postgresql,
         ];
         for s in services {
@@ -331,10 +356,8 @@ impl ServiceManager {
         }
 
         Err(format!(
-            "Binário para {} (versão {}) não foi encontrado em {:?}",
-            service.display_name(),
-            version,
-            dir
+            "Binário não encontrado em '{}'. Descarregue em 'Versões & Downloads' ou instale no sistema.",
+            dir.display()
         ))
     }
 
@@ -379,7 +402,7 @@ impl ServiceManager {
             }
         }
 
-        Err("Binário do PHP CLI não encontrado. Instale o PHP via 'Versões & Downloads' ou instale o PHP no sistema.".to_string())
+        Err("Binário do PHP CLI não encontrado. Descarregue o PHP em 'Versões & Downloads'.".to_string())
     }
 }
 

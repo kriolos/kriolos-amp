@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 pub enum ServiceType {
     Apache,
     Php,
-    Mysql,
     Mariadb,
+    Mysql,
     Postgresql,
     Tool,
 }
@@ -17,8 +17,8 @@ impl ServiceType {
         match self {
             ServiceType::Apache => "Apache HTTP Server",
             ServiceType::Php => "PHP Engine (FPM / CLI)",
-            ServiceType::Mysql => "MySQL Database",
             ServiceType::Mariadb => "MariaDB Database",
+            ServiceType::Mysql => "MySQL Database",
             ServiceType::Postgresql => "PostgreSQL Database",
             ServiceType::Tool => "Ferramenta / Runtime",
         }
@@ -28,8 +28,8 @@ impl ServiceType {
         match self {
             ServiceType::Apache => 8080,
             ServiceType::Php => 9000,
-            ServiceType::Mysql => 3306,
             ServiceType::Mariadb => 3307,
+            ServiceType::Mysql => 3306,
             ServiceType::Postgresql => 5432,
             ServiceType::Tool => 0,
         }
@@ -39,10 +39,21 @@ impl ServiceType {
         match self {
             ServiceType::Apache => "apache",
             ServiceType::Php => "php",
-            ServiceType::Mysql => "mysql",
             ServiceType::Mariadb => "mariadb",
+            ServiceType::Mysql => "mysql",
             ServiceType::Postgresql => "postgresql",
             ServiceType::Tool => "tools",
+        }
+    }
+
+    pub fn badge_label(&self) -> &'static str {
+        match self {
+            ServiceType::Apache => "WEB",
+            ServiceType::Php => "PHP",
+            ServiceType::Mariadb => "MARIADB",
+            ServiceType::Mysql => "MYSQL",
+            ServiceType::Postgresql => "POSTGRES",
+            ServiceType::Tool => "TOOL",
         }
     }
 
@@ -50,9 +61,9 @@ impl ServiceType {
         match self {
             ServiceType::Apache => "🌐",
             ServiceType::Php => "🐘",
-            ServiceType::Mysql => "🐬",
-            ServiceType::Mariadb => "🦭",
-            ServiceType::Postgresql => "🐘",
+            ServiceType::Mariadb => "🗄️",
+            ServiceType::Mysql => "🗄️",
+            ServiceType::Postgresql => "🗄️",
             ServiceType::Tool => "🛠️",
         }
     }

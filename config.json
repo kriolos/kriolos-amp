@@ -1,0 +1,30 @@
+{
+  "language": "pt-PT",
+  "theme": "dark",
+  "root_www_dir": "www",
+  "bin_dir": "bin",
+  "logs_dir": "logs",
+  "apache_port": 8080,
+  "apache_ssl_port": 8443,
+  "php_fpm_port": 9000,
+  "mysql_port": 3306,
+  "mariadb_port": 3307,
+  "postgresql_port": 5432,
+  "active_apache_version": null,
+  "active_php_version": null,
+  "active_mysql_version": null,
+  "active_mariadb_version": null,
+  "active_postgresql_version": null,
+  "remote_manifest_url": "https://raw.githubusercontent.com/antigravity-community/amp-control/main/assets/versions.json",
+  "php_servers": [
+    {
+      "id": "default-php-server",
+      "name": "Servidor PHP Principal",
+      "host": "127.0.0.1",
+      "port": 8000,
+      "doc_root": "www",
+      "php_version": null,
+      "auto_start": false
+    }
+  ]
+}
