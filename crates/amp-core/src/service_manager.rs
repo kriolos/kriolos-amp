@@ -139,6 +139,7 @@ impl ServiceManager {
             ServiceType::Php => {
                 // e.g. php-fpm
             }
+            ServiceType::Tool => {}
         }
 
         match cmd.spawn() {
@@ -200,6 +201,7 @@ impl ServiceManager {
             ServiceType::Apache => vec!["bin/httpd.exe", "httpd.exe"],
             ServiceType::Database => vec!["bin/mysqld.exe", "mysqld.exe", "bin/mariadbd.exe"],
             ServiceType::Php => vec!["php-cgi.exe", "php.exe"],
+            ServiceType::Tool => vec![],
         };
 
         #[cfg(not(windows))]
@@ -207,6 +209,7 @@ impl ServiceManager {
             ServiceType::Apache => vec!["bin/httpd", "bin/apache2", "httpd", "apache2"],
             ServiceType::Database => vec!["bin/mysqld", "bin/mariadbd", "mysqld", "mariadbd"],
             ServiceType::Php => vec!["sbin/php-fpm", "bin/php", "php-fpm", "php"],
+            ServiceType::Tool => vec![],
         };
 
         for candidate in candidates {
@@ -223,6 +226,7 @@ impl ServiceManager {
                 ServiceType::Apache => "apache2",
                 ServiceType::Database => "mariadbd",
                 ServiceType::Php => "php",
+                ServiceType::Tool => "",
             };
             if let Ok(output) = Command::new("which").arg(sys_binary).output() {
                 if output.status.success() {

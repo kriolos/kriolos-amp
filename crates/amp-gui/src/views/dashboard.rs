@@ -104,6 +104,7 @@ fn render_service_card(
                 ServiceType::Apache => "🌐",
                 ServiceType::Database => "🗄️",
                 ServiceType::Php => "🐘",
+                ServiceType::Tool => "🛠️",
             };
 
             ui.horizontal(|ui| {

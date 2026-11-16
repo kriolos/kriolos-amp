@@ -6,6 +6,7 @@ pub enum ServiceType {
     Apache,
     Database,
     Php,
+    Tool,
 }
 
 impl ServiceType {
@@ -14,6 +15,7 @@ impl ServiceType {
             ServiceType::Apache => "Apache HTTP Server",
             ServiceType::Database => "MariaDB / MySQL",
             ServiceType::Php => "PHP Engine",
+            ServiceType::Tool => "Ferramenta / Runtime",
         }
     }
 
@@ -22,6 +24,7 @@ impl ServiceType {
             ServiceType::Apache => 8080,
             ServiceType::Database => 3306,
             ServiceType::Php => 9000,
+            ServiceType::Tool => 0,
         }
     }
 
@@ -30,6 +33,7 @@ impl ServiceType {
             ServiceType::Apache => "apache",
             ServiceType::Database => "database",
             ServiceType::Php => "php",
+            ServiceType::Tool => "tools",
         }
     }
 }
@@ -99,6 +103,8 @@ pub struct PackageItem {
     pub size_bytes: Option<u64>,
     pub recommended: bool,
     pub description: Option<String>,
+    #[serde(default)]
+    pub external_link: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

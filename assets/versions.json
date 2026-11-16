@@ -1,30 +1,80 @@
 {
-  "updated_at": "2026-11-16T11:00:00Z",
+  "updated_at": "2026-11-16T11:50:00Z",
   "packages": [
     {
-      "id": "PHP 8.3 Core",
+      "id": "Visual C++ 2015-2022 Redistributable (x64)",
+      "service_type": "Tool",
+      "version": "14.40",
+      "platform": "windows-x86_64",
+      "url": "https://aka.ms/vc14/vc_redist.x64.exe",
+      "sha256": null,
+      "size_bytes": 25000000,
+      "recommended": true,
+      "description": "Pré-requisito essencial para Apache e PHP no Windows. Abre o instalador oficial da Microsoft.",
+      "external_link": true
+    },
+    {
+      "id": "Visual C++ 2015-2022 Redistributable (x86)",
+      "service_type": "Tool",
+      "version": "14.40",
+      "platform": "windows-x86",
+      "url": "https://aka.ms/vc14/vc_redist.x86.exe",
+      "sha256": null,
+      "size_bytes": 20000000,
+      "recommended": false,
+      "description": "Pré-requisito de runtime para versões 32-bit no Windows. Abre o instalador oficial da Microsoft.",
+      "external_link": true
+    },
+    {
+      "id": "Apache 2.4 (VS18 Win64)",
+      "service_type": "Apache",
+      "version": "2.4.63-vs18",
+      "platform": "windows-x86_64",
+      "url": "https://www.apachelounge.com/download/VS18/binaries/httpd-2.4.63-250101-win64-VS18.zip",
+      "sha256": null,
+      "size_bytes": 12800000,
+      "recommended": true,
+      "description": "Apache 2.4 compilado com Visual Studio VS18 pelo ApacheLounge, otimizado para Windows 64-bit.",
+      "external_link": false
+    },
+    {
+      "id": "PHP 8.5 (Win64 Thread Safe)",
+      "service_type": "Php",
+      "version": "8.5.7",
+      "platform": "windows-x86_64",
+      "url": "https://windows.php.net/downloads/releases/php-8.5.7-Win32-vs18-x64.zip",
+      "sha256": null,
+      "size_bytes": 32000000,
+      "recommended": true,
+      "description": "PHP 8.5 de última geração para Windows x64 com suporte ao Apache (veja novidades em php.watch/versions/8.5).",
+      "external_link": false
+    },
+    {
+      "id": "PHP 8.5 Source / Linux",
+      "service_type": "Php",
+      "version": "8.5.7",
+      "platform": "linux-x86_64",
+      "url": "https://github.com/php/php-src/archive/refs/tags/php-8.5.7.tar.gz",
+      "sha256": null,
+      "size_bytes": 20500000,
+      "recommended": true,
+      "description": "PHP 8.5 para ambientes Linux x86_64.",
+      "external_link": false
+    },
+    {
+      "id": "PHP 8.3 Core LTS",
       "service_type": "Php",
       "version": "8.3.13",
       "platform": "linux-x86_64",
       "url": "https://github.com/php/php-src/archive/refs/tags/php-8.3.13.tar.gz",
       "sha256": null,
       "size_bytes": 19500000,
-      "recommended": true,
-      "description": "PHP 8.3 LTS com suporte a Typed Class Constants, JIT e novos recursos de desempenho."
-    },
-    {
-      "id": "PHP 8.2 Core",
-      "service_type": "Php",
-      "version": "8.2.25",
-      "platform": "linux-x86_64",
-      "url": "https://github.com/php/php-src/archive/refs/tags/php-8.2.25.tar.gz",
-      "sha256": null,
-      "size_bytes": 18900000,
       "recommended": false,
-      "description": "PHP 8.2 estável com suporte a classes Readonly e tipos DNF."
+      "description": "PHP 8.3 LTS com suporte a Typed Class Constants e JIT estável.",
+      "external_link": false
     },
     {
-      "id": "Apache HTTP Server",
+      "id": "Apache HTTP Server (Linux)",
       "service_type": "Apache",
       "version": "2.4.62",
       "platform": "linux-x86_64",
@@ -32,7 +82,8 @@
       "sha256": null,
       "size_bytes": 9800000,
       "recommended": true,
-      "description": "Servidor Web Apache 2.4 de alta performance com suporte a mod_rewrite e HTTP/2."
+      "description": "Servidor Web Apache 2.4 de alta performance com suporte a mod_rewrite e HTTP/2.",
+      "external_link": false
     },
     {
       "id": "MariaDB Server",
@@ -43,29 +94,8 @@
       "sha256": null,
       "size_bytes": 85000000,
       "recommended": true,
-      "description": "Base de dados MariaDB 11.4 LTS compatível com MySQL, otimizada para transações rápidas."
-    },
-    {
-      "id": "PHP 8.3 Windows x64",
-      "service_type": "Php",
-      "version": "8.3.13",
-      "platform": "windows-x86_64",
-      "url": "https://windows.php.net/downloads/releases/php-8.3.13-Win32-vs16-x64.zip",
-      "sha256": null,
-      "size_bytes": 31000000,
-      "recommended": true,
-      "description": "PHP 8.3 Thread-Safe para Windows x64."
-    },
-    {
-      "id": "Apache 2.4 Windows x64",
-      "service_type": "Apache",
-      "version": "2.4.62",
-      "platform": "windows-x86_64",
-      "url": "https://www.apachelounge.com/download/VS17/binaries/httpd-2.4.62-240904-win64-VS17.zip",
-      "sha256": null,
-      "size_bytes": 12500000,
-      "recommended": true,
-      "description": "Apache 2.4 compilado com VS17 para Windows 64-bit."
+      "description": "Base de dados MariaDB 11.4 LTS compatível com MySQL, otimizada para transações rápidas.",
+      "external_link": false
     }
   ]
 }

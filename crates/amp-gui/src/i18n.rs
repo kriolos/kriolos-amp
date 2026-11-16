@@ -48,6 +48,7 @@ impl I18n {
         pt.insert("download_catalog", "Catálogo de Serviços Disponíveis");
         pt.insert("refresh_catalog", "Atualizar Catálogo");
         pt.insert("download_and_install", "Descarregar & Instalar");
+        pt.insert("open_in_browser", "Abrir no Navegador");
         pt.insert("installed", "Instalado");
         pt.insert("activate", "Ativar");
         pt.insert("downloading", "A transferir...");
@@ -101,6 +102,7 @@ impl I18n {
         en.insert("download_catalog", "Available Services Catalog");
         en.insert("refresh_catalog", "Refresh Catalog");
         en.insert("download_and_install", "Download & Install");
+        en.insert("open_in_browser", "Open in Browser");
         en.insert("installed", "Installed");
         en.insert("activate", "Activate");
         en.insert("downloading", "Downloading...");

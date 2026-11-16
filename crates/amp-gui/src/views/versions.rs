@@ -94,11 +94,14 @@ pub fn render_versions(
                                 ServiceType::Apache => "🌐",
                                 ServiceType::Database => "🗄️",
                                 ServiceType::Php => "🐘",
+                                ServiceType::Tool => "🛠️",
                             };
 
                             ui.label(RichText::new(icon).size(18.0));
                             ui.label(RichText::new(&pkg.id).strong());
-                            ui.label(RichText::new(format!("v{}", pkg.version)).monospace());
+                            if !pkg.version.is_empty() {
+                                ui.label(RichText::new(format!("v{}", pkg.version)).monospace());
+                            }
 
                             if pkg.recommended {
                                 ui.label(
@@ -115,7 +118,14 @@ pub fn render_versions(
                             );
 
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if is_installed {
+                                if pkg.external_link {
+                                    if ui
+                                        .button(format!("🌐 {}", i18n.t("open_in_browser")))
+                                        .clicked()
+                                    {
+                                        let _ = open::that(&pkg.url);
+                                    }
+                                } else if is_installed {
                                     ui.label(
                                         RichText::new(format!("✓ {}", i18n.t("installed")))
                                             .color(Color32::from_rgb(34, 197, 94)),
