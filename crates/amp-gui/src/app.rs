@@ -208,9 +208,6 @@ impl AmpApp {
                     self.status_bar_message = Some(("Todos os serviços foram parados.".to_string(), false));
                 }
             }
-            ServiceAction::OpenPhpServersTab => {
-                self.current_tab = ActiveTab::PhpServers;
-            }
         }
     }
 
@@ -427,7 +424,6 @@ impl eframe::App for AmpApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             let mut services_info = Vec::new();
             let mut logs = Vec::new();
-            let mut active_php_servers_count = 0;
 
             if let Ok(sm) = self.service_manager.lock() {
                 services_info.push(sm.get_service_info(ServiceType::Apache));
@@ -436,12 +432,6 @@ impl eframe::App for AmpApp {
                 services_info.push(sm.get_service_info(ServiceType::Mysql));
                 services_info.push(sm.get_service_info(ServiceType::Postgresql));
                 logs = sm.get_recent_logs();
-
-                for inst in &self.config.php_servers {
-                    if sm.is_php_server_running(&inst.id) {
-                        active_php_servers_count += 1;
-                    }
-                }
             }
 
             match self.current_tab {
@@ -451,7 +441,6 @@ impl eframe::App for AmpApp {
                         &self.i18n,
                         &services_info,
                         &self.config,
-                        active_php_servers_count,
                         &mut service_actions,
                     );
                 }

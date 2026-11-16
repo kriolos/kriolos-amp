@@ -1,7 +1,7 @@
 use crate::i18n::I18n;
 use amp_core::models::{AppConfig, ServiceInfo, ServiceStatus, ServiceType};
 use amp_core::PortChecker;
-use egui::{Color32, RichText, Ui, Vec2};
+use egui::{Color32, RichText, Ui};
 
 pub enum ServiceAction {
     Start(ServiceType),
@@ -9,7 +9,6 @@ pub enum ServiceAction {
     Restart(ServiceType),
     StartAll,
     StopAll,
-    OpenPhpServersTab,
 }
 
 pub fn render_dashboard(
@@ -17,7 +16,6 @@ pub fn render_dashboard(
     i18n: &I18n,
     services: &[ServiceInfo],
     config: &AppConfig,
-    active_php_servers_count: usize,
     actions: &mut Vec<ServiceAction>,
 ) {
     ui.add_space(8.0);
@@ -48,39 +46,49 @@ pub fn render_dashboard(
 
     ui.add_space(14.0);
 
-    // Symmetrical 3x2 Grid for Services
-    let row1 = [ServiceType::Apache, ServiceType::Php, ServiceType::Mariadb];
-    ui.columns(3, |columns| {
-        for (i, st) in row1.iter().enumerate() {
-            if let Some(info) = services.iter().find(|s| s.service_type == *st) {
-                render_service_card(&mut columns[i], i18n, info, actions);
+    // Compact & Perfectly Aligned 3-Column Grid
+    egui::Grid::new("services_cards_grid")
+        .num_columns(3)
+        .spacing([24.0, 16.0])
+        .show(ui, |ui| {
+            // Row 1: Apache, PHP, MariaDB
+            if let Some(info) = services.iter().find(|s| s.service_type == ServiceType::Apache) {
+                render_service_card(ui, i18n, info, actions);
+            } else {
+                ui.label("");
             }
-        }
-    });
 
-    ui.add_space(12.0);
-
-    let row2 = [ServiceType::Mysql, ServiceType::Postgresql];
-    ui.columns(3, |columns| {
-        for (i, st) in row2.iter().enumerate() {
-            if let Some(info) = services.iter().find(|s| s.service_type == *st) {
-                render_service_card(&mut columns[i], i18n, info, actions);
+            if let Some(info) = services.iter().find(|s| s.service_type == ServiceType::Php) {
+                render_service_card(ui, i18n, info, actions);
+            } else {
+                ui.label("");
             }
-        }
 
-        // 6th Card: System & PHP Servers Summary
-        render_summary_card(
-            &mut columns[2],
-            services,
-            active_php_servers_count,
-            config.php_servers.len(),
-            actions,
-        );
-    });
+            if let Some(info) = services.iter().find(|s| s.service_type == ServiceType::Mariadb) {
+                render_service_card(ui, i18n, info, actions);
+            } else {
+                ui.label("");
+            }
+            ui.end_row();
 
-    ui.add_space(18.0);
+            // Row 2: MySQL (under Apache), PostgreSQL (under PHP)
+            if let Some(info) = services.iter().find(|s| s.service_type == ServiceType::Mysql) {
+                render_service_card(ui, i18n, info, actions);
+            } else {
+                ui.label("");
+            }
+
+            if let Some(info) = services.iter().find(|s| s.service_type == ServiceType::Postgresql) {
+                render_service_card(ui, i18n, info, actions);
+            } else {
+                ui.label("");
+            }
+            ui.end_row();
+        });
+
+    ui.add_space(20.0);
     ui.separator();
-    ui.add_space(10.0);
+    ui.add_space(12.0);
 
     // Quick shortcuts
     ui.heading(RichText::new(i18n.t("quick_actions")).size(16.0));
@@ -100,22 +108,22 @@ pub fn render_dashboard(
         }
     });
 
-    ui.add_space(16.0);
+    ui.add_space(18.0);
     ui.separator();
-    ui.add_space(10.0);
+    ui.add_space(12.0);
 
     // Monitored ports status
     ui.heading(RichText::new(i18n.t("ports_status")).size(16.0));
     ui.add_space(8.0);
     ui.horizontal(|ui| {
         render_port_pill(ui, i18n, "Apache HTTP", config.apache_port);
-        ui.add_space(12.0);
+        ui.add_space(16.0);
         render_port_pill(ui, i18n, "Apache SSL", config.apache_ssl_port);
-        ui.add_space(12.0);
+        ui.add_space(16.0);
         render_port_pill(ui, i18n, "MariaDB", config.mariadb_port);
-        ui.add_space(12.0);
+        ui.add_space(16.0);
         render_port_pill(ui, i18n, "MySQL", config.mysql_port);
-        ui.add_space(12.0);
+        ui.add_space(16.0);
         render_port_pill(ui, i18n, "PostgreSQL", config.postgresql_port);
     });
 }
@@ -126,26 +134,26 @@ fn render_service_card(
     service: &ServiceInfo,
     actions: &mut Vec<ServiceAction>,
 ) {
-    let available_w = ui.available_width();
     egui::Frame::group(ui.style())
         .inner_margin(12.0)
         .show(ui, |ui| {
-            ui.set_min_size(Vec2::new(available_w, 160.0));
-            ui.set_max_width(available_w);
+            ui.set_width(260.0);
 
-            // Card Header: Badge + Service Title
+            let icon = match service.service_type {
+                ServiceType::Apache => "🌐",
+                ServiceType::Php => "🐘",
+                ServiceType::Mariadb => "🗄️",
+                ServiceType::Mysql => "🐬",
+                ServiceType::Postgresql => "🐘",
+                ServiceType::Tool => "🛠️",
+            };
+
             ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new(format!("[{}]", service.service_type.badge_label()))
-                        .color(Color32::from_rgb(96, 165, 250))
-                        .monospace()
-                        .size(11.0)
-                        .strong(),
-                );
+                ui.label(RichText::new(icon).size(18.0));
                 ui.heading(RichText::new(service.service_type.display_name()).size(14.0));
             });
 
-            ui.add_space(6.0);
+            ui.add_space(8.0);
 
             // Status Row
             ui.horizontal(|ui| {
@@ -182,13 +190,13 @@ fn render_service_card(
                 }
             });
 
-            // Port Row
+            ui.add_space(2.0);
             ui.horizontal(|ui| {
                 ui.label(format!("{}:", i18n.t("port")));
                 ui.label(RichText::new(service.port.to_string()).strong());
             });
 
-            // Version Row
+            ui.add_space(2.0);
             ui.horizontal(|ui| {
                 ui.label(format!("{}:", i18n.t("version")));
                 if let Some(ver) = &service.active_version {
@@ -198,94 +206,26 @@ fn render_service_card(
                 }
             });
 
-            ui.add_space(8.0);
+            ui.add_space(10.0);
 
-            // Bottom Action buttons
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-                ui.horizontal(|ui| {
-                    let is_running = matches!(service.status, ServiceStatus::Running { .. });
+            // Action buttons directly underneath
+            ui.horizontal(|ui| {
+                let is_running = matches!(service.status, ServiceStatus::Running { .. });
 
-                    if is_running {
-                        if ui.button(format!("⏹ {}", i18n.t("stop"))).clicked() {
-                            actions.push(ServiceAction::Stop(service.service_type));
-                        }
-                        if ui.button(format!("🔄 {}", i18n.t("restart"))).clicked() {
-                            actions.push(ServiceAction::Restart(service.service_type));
-                        }
-                    } else {
-                        if ui
-                            .button(RichText::new(format!("▶ {}", i18n.t("start"))).strong())
-                            .clicked()
-                        {
-                            actions.push(ServiceAction::Start(service.service_type));
-                        }
+                if is_running {
+                    if ui.button(format!("⏹ {}", i18n.t("stop"))).clicked() {
+                        actions.push(ServiceAction::Stop(service.service_type));
                     }
-                });
-            });
-        });
-}
-
-fn render_summary_card(
-    ui: &mut Ui,
-    services: &[ServiceInfo],
-    active_php_servers: usize,
-    total_php_servers: usize,
-    actions: &mut Vec<ServiceAction>,
-) {
-    let available_w = ui.available_width();
-    let running_services_count = services
-        .iter()
-        .filter(|s| matches!(s.status, ServiceStatus::Running { .. }))
-        .count();
-
-    egui::Frame::group(ui.style())
-        .inner_margin(12.0)
-        .show(ui, |ui| {
-            ui.set_min_size(Vec2::new(available_w, 160.0));
-            ui.set_max_width(available_w);
-
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("[STATUS]")
-                        .color(Color32::from_rgb(168, 85, 247))
-                        .monospace()
-                        .size(11.0)
-                        .strong(),
-                );
-                ui.heading(RichText::new("Resumo do Sistema").size(14.0));
-            });
-
-            ui.add_space(6.0);
-
-            ui.horizontal(|ui| {
-                ui.label("Serviços Principais:");
-                ui.label(
-                    RichText::new(format!("{} / 5 Ativos", running_services_count))
-                        .color(if running_services_count > 0 {
-                            Color32::from_rgb(34, 197, 94)
-                        } else {
-                            Color32::GRAY
-                        })
-                        .strong(),
-                );
-            });
-
-            ui.horizontal(|ui| {
-                ui.label("Servidores PHP:");
-                ui.label(
-                    RichText::new(format!(
-                        "{} / {} Ativos",
-                        active_php_servers, total_php_servers
-                    ))
-                    .strong(),
-                );
-            });
-
-            ui.add_space(8.0);
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-                if ui.button("🐘 Gerir Servidores PHP").clicked() {
-                    actions.push(ServiceAction::OpenPhpServersTab);
+                    if ui.button(format!("🔄 {}", i18n.t("restart"))).clicked() {
+                        actions.push(ServiceAction::Restart(service.service_type));
+                    }
+                } else {
+                    if ui
+                        .button(RichText::new(format!("▶ {}", i18n.t("start"))).strong())
+                        .clicked()
+                    {
+                        actions.push(ServiceAction::Start(service.service_type));
+                    }
                 }
             });
         });
