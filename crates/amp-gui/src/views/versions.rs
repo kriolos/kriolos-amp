@@ -1,5 +1,7 @@
 use crate::i18n::I18n;
-use amp_core::models::{DownloadState, PackageItem, ServiceType, VersionManifest};
+use amp_core::models::{
+    DownloadState, PackageItem, PackageKind, ServiceType, VersionManifest,
+};
 use egui::{Color32, ProgressBar, RichText, Ui};
 
 pub fn render_versions(
@@ -8,6 +10,8 @@ pub fn render_versions(
     manifest: Option<&VersionManifest>,
     installed_versions: &[(ServiceType, Vec<String>)],
     active_download: Option<&(String, DownloadState)>,
+    selected_service_filter: &mut Option<ServiceType>,
+    selected_kind_filter: &mut Option<PackageKind>,
     downloads_to_start: &mut Vec<PackageItem>,
     refresh_requested: &mut bool,
 ) {
@@ -23,7 +27,7 @@ pub fn render_versions(
         });
     });
 
-    ui.add_space(12.0);
+    ui.add_space(10.0);
 
     // Active download progress bar
     if let Some((pkg_name, state)) = active_download {
@@ -69,17 +73,75 @@ pub fn render_versions(
                     DownloadState::Idle => {}
                 }
             });
-        ui.add_space(16.0);
+        ui.add_space(12.0);
     }
 
-    ui.separator();
+    // Filter Bar - Services
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Serviço:").strong());
+
+        let service_options = [
+            (None, i18n.t("filter_all")),
+            (Some(ServiceType::Php), i18n.t("filter_php")),
+            (Some(ServiceType::Apache), i18n.t("filter_apache")),
+            (Some(ServiceType::Mariadb), i18n.t("filter_mariadb")),
+            (Some(ServiceType::Mysql), i18n.t("filter_mysql")),
+            (Some(ServiceType::Postgresql), i18n.t("filter_postgresql")),
+            (Some(ServiceType::Tool), i18n.t("filter_tools")),
+        ];
+
+        for (opt, label) in service_options {
+            let is_selected = *selected_service_filter == opt;
+            if ui.selectable_label(is_selected, label).clicked() {
+                *selected_service_filter = opt;
+            }
+        }
+    });
+
+    ui.add_space(6.0);
+
+    // Filter Bar - Package Kind
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Tipo:").strong());
+
+        let kind_options = [
+            (None, i18n.t("filter_kind_all")),
+            (Some(PackageKind::Binary), i18n.t("filter_kind_binary")),
+            (Some(PackageKind::Source), i18n.t("filter_kind_source")),
+        ];
+
+        for (opt, label) in kind_options {
+            let is_selected = *selected_kind_filter == opt;
+            if ui.selectable_label(is_selected, label).clicked() {
+                *selected_kind_filter = opt;
+            }
+        }
+    });
+
     ui.add_space(8.0);
-    ui.label(RichText::new(i18n.t("download_catalog")).strong());
+    ui.separator();
     ui.add_space(8.0);
 
     egui::ScrollArea::vertical().show(ui, |ui| {
         if let Some(man) = manifest {
+            let mut shown_count = 0;
+
             for pkg in &man.packages {
+                // Apply filters
+                if let Some(service_filter) = selected_service_filter {
+                    if pkg.service_type != *service_filter {
+                        continue;
+                    }
+                }
+
+                if let Some(kind_filter) = selected_kind_filter {
+                    if pkg.package_kind != *kind_filter {
+                        continue;
+                    }
+                }
+
+                shown_count += 1;
+
                 let is_installed = installed_versions
                     .iter()
                     .find(|(st, _)| *st == pkg.service_type)
@@ -90,17 +152,30 @@ pub fn render_versions(
                     .inner_margin(10.0)
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            let icon = match pkg.service_type {
-                                ServiceType::Apache => "🌐",
-                                ServiceType::Database => "🗄️",
-                                ServiceType::Php => "🐘",
-                                ServiceType::Tool => "🛠️",
-                            };
-
-                            ui.label(RichText::new(icon).size(18.0));
+                            ui.label(RichText::new(pkg.service_type.icon()).size(18.0));
                             ui.label(RichText::new(&pkg.id).strong());
+
                             if !pkg.version.is_empty() {
                                 ui.label(RichText::new(format!("v{}", pkg.version)).monospace());
+                            }
+
+                            // Badge Kind
+                            match pkg.package_kind {
+                                PackageKind::Binary => {
+                                    ui.label(
+                                        RichText::new("🚀 Binário Pronto")
+                                            .color(Color32::from_rgb(34, 197, 94))
+                                            .size(11.0)
+                                            .strong(),
+                                    );
+                                }
+                                PackageKind::Source => {
+                                    ui.label(
+                                        RichText::new("📦 Código-fonte")
+                                            .color(Color32::from_rgb(249, 115, 22))
+                                            .size(11.0),
+                                    );
+                                }
                             }
 
                             if pkg.recommended {
@@ -148,8 +223,13 @@ pub fn render_versions(
                     });
                 ui.add_space(6.0);
             }
+
+            if shown_count == 0 {
+                ui.add_space(20.0);
+                ui.label(RichText::new("Nenhum pacote encontrado com os filtros selecionados.").italics());
+            }
         } else {
-            ui.label("Carregando catálogo de versões...");
+            ui.label("A carregar catálogo de versões...");
         }
     });
 }

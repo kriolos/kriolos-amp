@@ -56,7 +56,7 @@ pub fn render_logs(ui: &mut Ui, i18n: &I18n, logs: &[LogMessage], search_filter:
                             );
 
                             ui.label(
-                                RichText::new(format!("[{}]", entry.service.display_name()))
+                                RichText::new(format!("[{}]", entry.service_label))
                                     .color(Color32::from_rgb(96, 165, 250))
                                     .monospace()
                                     .size(11.0),

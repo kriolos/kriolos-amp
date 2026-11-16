@@ -1,4 +1,4 @@
-use crate::models::{ServiceInfo, ServiceStatus, ServiceType};
+use crate::models::{PhpServerInstance, ServiceInfo, ServiceStatus, ServiceType};
 use crate::port_checker::PortChecker;
 use std::collections::HashMap;
 use std::fs;
@@ -9,7 +9,7 @@ use tokio::sync::broadcast;
 
 #[derive(Clone, Debug)]
 pub struct LogMessage {
-    pub service: ServiceType,
+    pub service_label: String,
     pub timestamp: String,
     pub message: String,
     pub is_error: bool,
@@ -19,6 +19,7 @@ pub struct ServiceManager {
     base_bin_dir: PathBuf,
     active_processes: HashMap<ServiceType, Child>,
     active_ports: HashMap<ServiceType, u16>,
+    php_server_processes: HashMap<String, (Child, u16)>, // instance_id -> (Child, port)
     log_sender: broadcast::Sender<LogMessage>,
     recent_logs: Arc<Mutex<Vec<LogMessage>>>,
 }
@@ -30,6 +31,7 @@ impl ServiceManager {
             base_bin_dir,
             active_processes: HashMap::new(),
             active_ports: HashMap::new(),
+            php_server_processes: HashMap::new(),
             log_sender,
             recent_logs: Arc::new(Mutex::new(Vec::new())),
         }
@@ -43,10 +45,10 @@ impl ServiceManager {
         self.recent_logs.lock().unwrap().clone()
     }
 
-    pub fn add_log(&self, service: ServiceType, msg: &str, is_error: bool) {
+    pub fn add_log(&self, label: &str, msg: &str, is_error: bool) {
         let now = chrono_lite();
         let log_entry = LogMessage {
-            service,
+            service_label: label.to_string(),
             timestamp: now,
             message: msg.to_string(),
             is_error,
@@ -114,13 +116,13 @@ impl ServiceManager {
 
         if PortChecker::is_port_in_use(port) {
             let err = format!("Porta {} já está ocupada por outro processo!", port);
-            self.add_log(service, &err, true);
+            self.add_log(service.display_name(), &err, true);
             return Err(err);
         }
 
         let bin_path = self.locate_binary(service, version)?;
         self.add_log(
-            service,
+            service.display_name(),
             &format!("Iniciando {} (v{}) na porta {}...", service.display_name(), version, port),
             false,
         );
@@ -128,16 +130,21 @@ impl ServiceManager {
         let mut cmd = Command::new(&bin_path);
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        // Platform and service specific args
         match service {
             ServiceType::Apache => {
-                // e.g. -D FOREGROUND or -k start
+                #[cfg(windows)]
+                cmd.args(["-D", "FOREGROUND"]);
+                #[cfg(not(windows))]
+                cmd.args(["-D", "FOREGROUND"]);
             }
-            ServiceType::Database => {
-                // e.g. --port=3306
+            ServiceType::Mysql | ServiceType::Mariadb => {
+                cmd.arg(format!("--port={}", port));
+            }
+            ServiceType::Postgresql => {
+                cmd.args(["-p", &port.to_string()]);
             }
             ServiceType::Php => {
-                // e.g. php-fpm
+                // php-fpm
             }
             ServiceType::Tool => {}
         }
@@ -148,15 +155,15 @@ impl ServiceManager {
                 self.active_processes.insert(service, child);
                 self.active_ports.insert(service, port);
                 self.add_log(
-                    service,
-                    &format!("Serviço {} iniciado com sucesso (PID: {})", service.display_name(), pid),
+                    service.display_name(),
+                    &format!("Iniciado com sucesso (PID: {})", pid),
                     false,
                 );
                 Ok(())
             }
             Err(e) => {
                 let err = format!("Falha ao iniciar {}: {}", service.display_name(), e);
-                self.add_log(service, &err, true);
+                self.add_log(service.display_name(), &err, true);
                 Err(err)
             }
         }
@@ -165,15 +172,15 @@ impl ServiceManager {
     pub fn stop_service(&mut self, service: ServiceType) -> Result<(), String> {
         if let Some(mut child) = self.active_processes.remove(&service) {
             self.add_log(
-                service,
-                &format!("Parando serviço {}...", service.display_name()),
+                service.display_name(),
+                &format!("A parar serviço {}...", service.display_name()),
                 false,
             );
             let _ = child.kill();
             let _ = child.wait();
             self.active_ports.remove(&service);
             self.add_log(
-                service,
+                service.display_name(),
                 &format!("Serviço {} parado.", service.display_name()),
                 false,
             );
@@ -183,10 +190,87 @@ impl ServiceManager {
         }
     }
 
+    // --- PHP Embedded Web Server (php -S) Management ---
+
+    pub fn is_php_server_running(&self, instance_id: &str) -> bool {
+        self.php_server_processes.contains_key(instance_id)
+    }
+
+    pub fn start_php_server(
+        &mut self,
+        instance: &PhpServerInstance,
+        php_version: Option<&str>,
+    ) -> Result<(), String> {
+        if self.php_server_processes.contains_key(&instance.id) {
+            return Ok(());
+        }
+
+        if PortChecker::is_port_in_use(instance.port) {
+            let err = format!("Porta {} já em uso para '{}'!", instance.port, instance.name);
+            self.add_log(&instance.name, &err, true);
+            return Err(err);
+        }
+
+        let php_bin = self.locate_php_cli(php_version)?;
+        let bind_addr = format!("{}:{}", instance.host, instance.port);
+
+        self.add_log(
+            &instance.name,
+            &format!(
+                "Iniciando PHP Embedded Server em http://{} (Root: {})...",
+                bind_addr, instance.doc_root
+            ),
+            false,
+        );
+
+        let mut cmd = Command::new(&php_bin);
+        cmd.args(["-S", &bind_addr, "-t", &instance.doc_root]);
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        match cmd.spawn() {
+            Ok(child) => {
+                let pid = child.id();
+                self.php_server_processes
+                    .insert(instance.id.clone(), (child, instance.port));
+                self.add_log(
+                    &instance.name,
+                    &format!("Servidor PHP ativo em http://{} (PID: {})", bind_addr, pid),
+                    false,
+                );
+                Ok(())
+            }
+            Err(e) => {
+                let err = format!("Erro ao iniciar servidor PHP '{}': {}", instance.name, e);
+                self.add_log(&instance.name, &err, true);
+                Err(err)
+            }
+        }
+    }
+
+    pub fn stop_php_server(&mut self, instance_id: &str) -> Result<(), String> {
+        if let Some((mut child, _)) = self.php_server_processes.remove(instance_id) {
+            let _ = child.kill();
+            let _ = child.wait();
+            self.add_log(instance_id, "Servidor PHP embutido parado.", false);
+        }
+        Ok(())
+    }
+
     pub fn stop_all(&mut self) {
-        let services = vec![ServiceType::Apache, ServiceType::Database, ServiceType::Php];
+        let services = [
+            ServiceType::Apache,
+            ServiceType::Php,
+            ServiceType::Mysql,
+            ServiceType::Mariadb,
+            ServiceType::Postgresql,
+        ];
         for s in services {
             let _ = self.stop_service(s);
+        }
+
+        let instance_ids: Vec<String> = self.php_server_processes.keys().cloned().collect();
+        for id in instance_ids {
+            let _ = self.stop_php_server(&id);
         }
     }
 
@@ -199,16 +283,20 @@ impl ServiceManager {
         #[cfg(windows)]
         let candidates = match service {
             ServiceType::Apache => vec!["bin/httpd.exe", "httpd.exe"],
-            ServiceType::Database => vec!["bin/mysqld.exe", "mysqld.exe", "bin/mariadbd.exe"],
-            ServiceType::Php => vec!["php-cgi.exe", "php.exe"],
+            ServiceType::Php => vec!["php.exe", "php-cgi.exe"],
+            ServiceType::Mysql => vec!["bin/mysqld.exe", "mysqld.exe"],
+            ServiceType::Mariadb => vec!["bin/mariadbd.exe", "bin/mysqld.exe", "mariadbd.exe"],
+            ServiceType::Postgresql => vec!["bin/postgres.exe", "postgres.exe"],
             ServiceType::Tool => vec![],
         };
 
         #[cfg(not(windows))]
         let candidates = match service {
             ServiceType::Apache => vec!["bin/httpd", "bin/apache2", "httpd", "apache2"],
-            ServiceType::Database => vec!["bin/mysqld", "bin/mariadbd", "mysqld", "mariadbd"],
-            ServiceType::Php => vec!["sbin/php-fpm", "bin/php", "php-fpm", "php"],
+            ServiceType::Php => vec!["bin/php", "sbin/php-fpm", "php", "php-fpm"],
+            ServiceType::Mysql => vec!["bin/mysqld", "mysqld"],
+            ServiceType::Mariadb => vec!["bin/mariadbd", "bin/mysqld", "mariadbd", "mysqld"],
+            ServiceType::Postgresql => vec!["bin/postgres", "postgres"],
             ServiceType::Tool => vec![],
         };
 
@@ -219,20 +307,24 @@ impl ServiceManager {
             }
         }
 
-        // On Linux/Unix, if no local binary in bin folder, check system paths as fallback
+        // On Linux fallback to system binaries
         #[cfg(not(windows))]
         {
             let sys_binary = match service {
                 ServiceType::Apache => "apache2",
-                ServiceType::Database => "mariadbd",
                 ServiceType::Php => "php",
+                ServiceType::Mysql => "mysqld",
+                ServiceType::Mariadb => "mariadbd",
+                ServiceType::Postgresql => "postgres",
                 ServiceType::Tool => "",
             };
-            if let Ok(output) = Command::new("which").arg(sys_binary).output() {
-                if output.status.success() {
-                    let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                    if !path_str.is_empty() {
-                        return Ok(PathBuf::from(path_str));
+            if !sys_binary.is_empty() {
+                if let Ok(output) = Command::new("which").arg(sys_binary).output() {
+                    if output.status.success() {
+                        let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                        if !path_str.is_empty() {
+                            return Ok(PathBuf::from(path_str));
+                        }
                     }
                 }
             }
@@ -244,6 +336,50 @@ impl ServiceManager {
             version,
             dir
         ))
+    }
+
+    fn locate_php_cli(&self, version: Option<&str>) -> Result<PathBuf, String> {
+        if let Some(ver) = version {
+            let dir = self.base_bin_dir.join("php").join(ver);
+            #[cfg(windows)]
+            let candidates = ["php.exe"];
+            #[cfg(not(windows))]
+            let candidates = ["bin/php", "php"];
+
+            for c in candidates {
+                let p = dir.join(c);
+                if p.exists() {
+                    return Ok(p);
+                }
+            }
+        }
+
+        // Fallback to system php
+        #[cfg(not(windows))]
+        {
+            if let Ok(output) = Command::new("which").arg("php").output() {
+                if output.status.success() {
+                    let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    if !path_str.is_empty() {
+                        return Ok(PathBuf::from(path_str));
+                    }
+                }
+            }
+        }
+
+        #[cfg(windows)]
+        {
+            if let Ok(output) = Command::new("where").arg("php.exe").output() {
+                if output.status.success() {
+                    let path_str = String::from_utf8_lossy(&output.stdout).lines().next().unwrap_or("").trim().to_string();
+                    if !path_str.is_empty() {
+                        return Ok(PathBuf::from(path_str));
+                    }
+                }
+            }
+        }
+
+        Err("Binário do PHP CLI não encontrado. Instale o PHP via 'Versões & Downloads' ou instale o PHP no sistema.".to_string())
     }
 }
 

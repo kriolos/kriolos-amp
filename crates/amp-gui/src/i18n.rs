@@ -14,6 +14,7 @@ impl I18n {
         pt.insert("app_title", "AMP Control");
         pt.insert("dashboard", "Painel Principal");
         pt.insert("versions", "Versões & Downloads");
+        pt.insert("php_servers", "Servidores PHP");
         pt.insert("vhosts", "Virtual Hosts");
         pt.insert("configs", "Configurações & Módulos");
         pt.insert("logs", "Logs em Tempo Real");
@@ -41,7 +42,7 @@ impl I18n {
         pt.insert("open_phpmyadmin", "Abrir phpMyAdmin");
         pt.insert("open_phpinfo", "Ver phpinfo()");
 
-        pt.insert("ports_status", "Estado das Portas");
+        pt.insert("ports_status", "Estado das Portas Monitorizadas");
         pt.insert("port_available", "Disponível");
         pt.insert("port_in_use", "Em Uso / Ativa");
 
@@ -55,12 +56,40 @@ impl I18n {
         pt.insert("extracting", "A extrair ficheiros...");
         pt.insert("download_complete", "Instalação concluída!");
 
+        // Filters
+        pt.insert("filter_all", "Todos");
+        pt.insert("filter_php", "PHP");
+        pt.insert("filter_apache", "Apache");
+        pt.insert("filter_mariadb", "MariaDB");
+        pt.insert("filter_mysql", "MySQL");
+        pt.insert("filter_postgresql", "PostgreSQL");
+        pt.insert("filter_tools", "Ferramentas & VC++");
+        pt.insert("filter_kind_all", "Todos os Tipos");
+        pt.insert("filter_kind_binary", "🚀 Apenas Binários");
+        pt.insert("filter_kind_source", "📦 Apenas Código-fonte");
+
+        // PHP Embedded Server
+        pt.insert("php_server_title", "Servidores PHP Embutidos (Built-in Server)");
+        pt.insert("add_php_server", "+ Novo Servidor PHP");
+        pt.insert("server_name", "Nome da Instância");
+        pt.insert("doc_root", "Diretório Raiz");
+        pt.insert("host", "Host / IP");
+        pt.insert("embedded_php_info", "💡 O PHP possui um servidor web embutido (php -S) ideal para desenvolvimento rápido de múltiplos sites ou APIs sem necessidade do Apache.");
+
+        // Settings
         pt.insert("language", "Idioma");
         pt.insert("theme", "Tema Visual");
         pt.insert("theme_dark", "Escuro");
         pt.insert("theme_light", "Claro");
-        pt.insert("root_dir", "Diretório Raiz dos Projetos");
+        pt.insert("root_dir", "Diretório Raiz dos Projetos (www)");
+        pt.insert("bin_dir", "Diretório de Binários (bin)");
+        pt.insert("logs_dir", "Diretório de Logs (logs)");
+        pt.insert("ports_config", "Configuração de Portas de Monitorização");
+        pt.insert("remote_manifest_url", "URL do Catálogo Remoto (JSON)");
         pt.insert("browse", "Procurar...");
+        pt.insert("save_settings", "💾 Guardar Configurações");
+        pt.insert("reset_defaults", "🔄 Repor Valores por Omissão");
+        pt.insert("settings_saved", "Configurações guardadas com sucesso!");
 
         translations.insert("pt-PT".to_string(), pt);
 
@@ -68,6 +97,7 @@ impl I18n {
         en.insert("app_title", "AMP Control");
         en.insert("dashboard", "Dashboard");
         en.insert("versions", "Versions & Downloads");
+        en.insert("php_servers", "PHP Servers");
         en.insert("vhosts", "Virtual Hosts");
         en.insert("configs", "Configs & Modules");
         en.insert("logs", "Live Logs");
@@ -95,7 +125,7 @@ impl I18n {
         en.insert("open_phpmyadmin", "Open phpMyAdmin");
         en.insert("open_phpinfo", "View phpinfo()");
 
-        en.insert("ports_status", "Ports Status");
+        en.insert("ports_status", "Monitored Ports Status");
         en.insert("port_available", "Available");
         en.insert("port_in_use", "In Use / Active");
 
@@ -109,12 +139,40 @@ impl I18n {
         en.insert("extracting", "Extracting files...");
         en.insert("download_complete", "Installation completed!");
 
+        // Filters
+        en.insert("filter_all", "All");
+        en.insert("filter_php", "PHP");
+        en.insert("filter_apache", "Apache");
+        en.insert("filter_mariadb", "MariaDB");
+        en.insert("filter_mysql", "MySQL");
+        en.insert("filter_postgresql", "PostgreSQL");
+        en.insert("filter_tools", "Tools & VC++");
+        en.insert("filter_kind_all", "All Types");
+        en.insert("filter_kind_binary", "🚀 Binaries Only");
+        en.insert("filter_kind_source", "📦 Source Only");
+
+        // PHP Embedded Server
+        en.insert("php_server_title", "PHP Embedded Web Servers (Built-in Server)");
+        en.insert("add_php_server", "+ New PHP Server");
+        en.insert("server_name", "Instance Name");
+        en.insert("doc_root", "Document Root");
+        en.insert("host", "Host / IP");
+        en.insert("embedded_php_info", "💡 PHP has a built-in web server (php -S) great for lightweight, rapid development of multiple sites or APIs without Apache.");
+
+        // Settings
         en.insert("language", "Language");
         en.insert("theme", "Theme");
         en.insert("theme_dark", "Dark");
         en.insert("theme_light", "Light");
-        en.insert("root_dir", "Root Web Projects Directory");
+        en.insert("root_dir", "Root Web Directory (www)");
+        en.insert("bin_dir", "Binaries Directory (bin)");
+        en.insert("logs_dir", "Logs Directory (logs)");
+        en.insert("ports_config", "Monitored Ports Configuration");
+        en.insert("remote_manifest_url", "Remote Manifest URL (JSON)");
         en.insert("browse", "Browse...");
+        en.insert("save_settings", "💾 Save Settings");
+        en.insert("reset_defaults", "🔄 Reset to Defaults");
+        en.insert("settings_saved", "Settings saved successfully!");
 
         translations.insert("en-US".to_string(), en);
 

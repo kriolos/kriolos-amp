@@ -3,12 +3,13 @@ use crate::views::{
     configs::render_configs,
     dashboard::{render_dashboard, ServiceAction},
     logs::render_logs,
-    settings::render_settings,
+    php_servers::{render_php_servers, PhpServerAction},
+    settings::{render_settings, SettingsAction},
     versions::render_versions,
     vhosts::render_vhosts,
 };
 use amp_core::models::{
-    DownloadState, PackageItem, ServiceType, VersionManifest,
+    AppConfig, DownloadState, PackageItem, PackageKind, ServiceType, VersionManifest,
 };
 use amp_core::{PackageManager, ServiceManager};
 use egui::{Color32, RichText, Visuals};
@@ -19,6 +20,7 @@ use tokio::sync::mpsc;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActiveTab {
     Dashboard,
+    PhpServers,
     Versions,
     VHosts,
     Configs,
@@ -29,27 +31,39 @@ pub enum ActiveTab {
 pub struct AmpApp {
     current_tab: ActiveTab,
     i18n: I18n,
+    config: AppConfig,
+    config_path: PathBuf,
+    settings_status: Option<String>,
     service_manager: Arc<Mutex<ServiceManager>>,
     manifest: Option<VersionManifest>,
     installed_versions: Vec<(ServiceType, Vec<String>)>,
     active_download: Option<(String, DownloadState)>,
     download_rx: Option<mpsc::Receiver<DownloadState>>,
-    current_theme: String,
-    root_dir: String,
     search_log_filter: String,
+    selected_service_filter: Option<ServiceType>,
+    selected_kind_filter: Option<PackageKind>,
+    new_php_server_name: String,
+    new_php_server_port: u16,
+    new_php_server_root: String,
     tokio_handle: tokio::runtime::Handle,
 }
 
 impl AmpApp {
     pub fn new(cc: &eframe::CreationContext<'_>, tokio_handle: tokio::runtime::Handle) -> Self {
-        // Configure visual styles
-        let mut visuals = Visuals::dark();
-        visuals.window_rounding = 8.0.into();
-        visuals.menu_rounding = 6.0.into();
-        cc.egui_ctx.set_visuals(visuals);
+        let config_path = PathBuf::from("config.json");
+        let config = AppConfig::load_or_default(&config_path);
 
-        let base_bin_dir = PathBuf::from("bin");
-        let service_manager = Arc::new(Mutex::new(ServiceManager::new(base_bin_dir)));
+        // Configure visual styles according to saved theme
+        if config.theme == "light" {
+            cc.egui_ctx.set_visuals(Visuals::light());
+        } else {
+            let mut visuals = Visuals::dark();
+            visuals.window_rounding = 8.0.into();
+            visuals.menu_rounding = 6.0.into();
+            cc.egui_ctx.set_visuals(visuals);
+        }
+
+        let service_manager = Arc::new(Mutex::new(ServiceManager::new(config.bin_dir.clone())));
 
         // Load local manifest if available
         let local_manifest_path = PathBuf::from("assets/versions.json");
@@ -61,17 +75,25 @@ impl AmpApp {
             None
         };
 
+        let lang = config.language.clone();
+
         let mut app = Self {
             current_tab: ActiveTab::Dashboard,
-            i18n: I18n::new("pt-PT"),
+            i18n: I18n::new(&lang),
+            config,
+            config_path,
+            settings_status: None,
             service_manager,
             manifest,
             installed_versions: Vec::new(),
             active_download: None,
             download_rx: None,
-            current_theme: "dark".to_string(),
-            root_dir: "www".to_string(),
             search_log_filter: String::new(),
+            selected_service_filter: None,
+            selected_kind_filter: None,
+            new_php_server_name: String::new(),
+            new_php_server_port: 8000,
+            new_php_server_root: "www".to_string(),
             tokio_handle,
         };
 
@@ -83,8 +105,10 @@ impl AmpApp {
         if let Ok(sm) = self.service_manager.lock() {
             self.installed_versions = vec![
                 (ServiceType::Apache, sm.list_installed_versions(ServiceType::Apache)),
-                (ServiceType::Database, sm.list_installed_versions(ServiceType::Database)),
                 (ServiceType::Php, sm.list_installed_versions(ServiceType::Php)),
+                (ServiceType::Mariadb, sm.list_installed_versions(ServiceType::Mariadb)),
+                (ServiceType::Mysql, sm.list_installed_versions(ServiceType::Mysql)),
+                (ServiceType::Postgresql, sm.list_installed_versions(ServiceType::Postgresql)),
             ];
         }
     }
@@ -99,33 +123,72 @@ impl AmpApp {
         }));
         self.download_rx = Some(rx);
 
-        let destination = PathBuf::from("bin");
+        let destination = self.config.bin_dir.clone();
         self.tokio_handle.spawn(async move {
             let _ = PackageManager::download_and_extract(&item, &destination, Some(tx)).await;
         });
     }
 
     fn handle_service_action(&mut self, action: ServiceAction) {
+        let ports = [
+            (ServiceType::Apache, self.config.apache_port),
+            (ServiceType::Php, self.config.php_fpm_port),
+            (ServiceType::Mariadb, self.config.mariadb_port),
+            (ServiceType::Mysql, self.config.mysql_port),
+            (ServiceType::Postgresql, self.config.postgresql_port),
+        ];
+
         if let Ok(mut sm) = self.service_manager.lock() {
             match action {
                 ServiceAction::Start(st) => {
-                    let _ = sm.start_service(st, "default", st.default_port());
+                    let port = ports.iter().find(|(t, _)| *t == st).map(|(_, p)| *p).unwrap_or(st.default_port());
+                    let _ = sm.start_service(st, "default", port);
                 }
                 ServiceAction::Stop(st) => {
                     let _ = sm.stop_service(st);
                 }
                 ServiceAction::Restart(st) => {
+                    let port = ports.iter().find(|(t, _)| *t == st).map(|(_, p)| *p).unwrap_or(st.default_port());
                     let _ = sm.stop_service(st);
-                    let _ = sm.start_service(st, "default", st.default_port());
+                    let _ = sm.start_service(st, "default", port);
                 }
                 ServiceAction::StartAll => {
-                    let _ = sm.start_service(ServiceType::Apache, "default", ServiceType::Apache.default_port());
-                    let _ = sm.start_service(ServiceType::Database, "default", ServiceType::Database.default_port());
-                    let _ = sm.start_service(ServiceType::Php, "default", ServiceType::Php.default_port());
+                    for (st, port) in ports {
+                        let _ = sm.start_service(st, "default", port);
+                    }
                 }
                 ServiceAction::StopAll => {
                     sm.stop_all();
                 }
+            }
+        }
+    }
+
+    fn handle_php_server_action(&mut self, action: PhpServerAction) {
+        match action {
+            PhpServerAction::Start(id) => {
+                if let Some(inst) = self.config.php_servers.iter().find(|s| s.id == id).cloned() {
+                    let php_ver = self.config.active_php_version.as_deref();
+                    if let Ok(mut sm) = self.service_manager.lock() {
+                        let _ = sm.start_php_server(&inst, php_ver);
+                    }
+                }
+            }
+            PhpServerAction::Stop(id) => {
+                if let Ok(mut sm) = self.service_manager.lock() {
+                    let _ = sm.stop_php_server(&id);
+                }
+            }
+            PhpServerAction::Add(instance) => {
+                self.config.php_servers.push(instance);
+                let _ = self.config.save(&self.config_path);
+            }
+            PhpServerAction::Remove(id) => {
+                if let Ok(mut sm) = self.service_manager.lock() {
+                    let _ = sm.stop_php_server(&id);
+                }
+                self.config.php_servers.retain(|s| s.id != id);
+                let _ = self.config.save(&self.config_path);
             }
         }
     }
@@ -150,7 +213,7 @@ impl eframe::App for AmpApp {
         }
 
         // Apply theme changes
-        if self.current_theme == "light" {
+        if self.config.theme == "light" {
             ctx.set_visuals(Visuals::light());
         } else {
             ctx.set_visuals(Visuals::dark());
@@ -159,7 +222,7 @@ impl eframe::App for AmpApp {
         // Left Navigation Sidebar
         egui::SidePanel::left("nav_panel")
             .resizable(false)
-            .exact_width(210.0)
+            .exact_width(215.0)
             .show(ctx, |ui| {
                 ui.add_space(14.0);
                 ui.horizontal(|ui| {
@@ -167,10 +230,11 @@ impl eframe::App for AmpApp {
                     ui.heading(RichText::new(self.i18n.t("app_title")).strong().size(18.0));
                 });
 
-                ui.add_space(20.0);
+                ui.add_space(18.0);
 
                 let tabs = [
                     (ActiveTab::Dashboard, "📊", self.i18n.t("dashboard")),
+                    (ActiveTab::PhpServers, "🐘", self.i18n.t("php_servers")),
                     (ActiveTab::Versions, "📦", self.i18n.t("versions")),
                     (ActiveTab::VHosts, "🌐", self.i18n.t("vhosts")),
                     (ActiveTab::Configs, "⚙️", self.i18n.t("configs")),
@@ -197,7 +261,7 @@ impl eframe::App for AmpApp {
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                     ui.add_space(10.0);
                     ui.label(
-                        RichText::new("Cross-Platform • Rust 1.97")
+                        RichText::new("Cross-Platform • 100% Configurable")
                             .color(Color32::DARK_GRAY)
                             .size(10.0),
                     );
@@ -209,20 +273,23 @@ impl eframe::App for AmpApp {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new("Apache • MariaDB/MySQL • PHP Control Environment")
+                    RichText::new("Apache • MariaDB • MySQL • PostgreSQL • PHP Environment")
                         .color(Color32::GRAY)
                         .size(12.0),
                 );
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // Quick language toggle in header
                     if self.i18n.current_language() == "pt-PT" {
                         if ui.button("🇬🇧 EN").clicked() {
+                            self.config.language = "en-US".to_string();
                             self.i18n.set_language("en-US");
+                            let _ = self.config.save(&self.config_path);
                         }
                     } else {
                         if ui.button("🇵🇹 PT").clicked() {
+                            self.config.language = "pt-PT".to_string();
                             self.i18n.set_language("pt-PT");
+                            let _ = self.config.save(&self.config_path);
                         }
                     }
                 });
@@ -230,9 +297,11 @@ impl eframe::App for AmpApp {
             ui.add_space(6.0);
         });
 
-        // Collect actions to execute after drawing to avoid borrow conflicts
+        // Action queues to avoid borrow conflicts
         let mut service_actions = Vec::new();
+        let mut php_actions = Vec::new();
         let mut downloads_to_start = Vec::new();
+        let mut settings_actions = Vec::new();
         let mut refresh_versions_requested = false;
 
         // Central Content Area
@@ -242,8 +311,10 @@ impl eframe::App for AmpApp {
 
             if let Ok(sm) = self.service_manager.lock() {
                 services_info.push(sm.get_service_info(ServiceType::Apache));
-                services_info.push(sm.get_service_info(ServiceType::Database));
                 services_info.push(sm.get_service_info(ServiceType::Php));
+                services_info.push(sm.get_service_info(ServiceType::Mariadb));
+                services_info.push(sm.get_service_info(ServiceType::Mysql));
+                services_info.push(sm.get_service_info(ServiceType::Postgresql));
                 logs = sm.get_recent_logs();
             }
 
@@ -253,7 +324,28 @@ impl eframe::App for AmpApp {
                         ui,
                         &self.i18n,
                         &services_info,
+                        &self.config,
                         &mut service_actions,
+                    );
+                }
+                ActiveTab::PhpServers => {
+                    let is_running_checker = |id: &str| {
+                        if let Ok(sm) = self.service_manager.lock() {
+                            sm.is_php_server_running(id)
+                        } else {
+                            false
+                        }
+                    };
+
+                    render_php_servers(
+                        ui,
+                        &self.i18n,
+                        &self.config.php_servers,
+                        is_running_checker,
+                        &mut php_actions,
+                        &mut self.new_php_server_name,
+                        &mut self.new_php_server_port,
+                        &mut self.new_php_server_root,
                     );
                 }
                 ActiveTab::Versions => {
@@ -263,6 +355,8 @@ impl eframe::App for AmpApp {
                         self.manifest.as_ref(),
                         &self.installed_versions,
                         self.active_download.as_ref(),
+                        &mut self.selected_service_filter,
+                        &mut self.selected_kind_filter,
                         &mut downloads_to_start,
                         &mut refresh_versions_requested,
                     );
@@ -274,14 +368,16 @@ impl eframe::App for AmpApp {
                     render_configs(ui, &self.i18n);
                 }
                 ActiveTab::Logs => {
-                    render_logs(ui, &self.i18n, &logs, &mut self.search_log_filter);
+                    let log_entries: Vec<amp_core::service_manager::LogMessage> = logs;
+                    render_logs(ui, &self.i18n, &log_entries, &mut self.search_log_filter);
                 }
                 ActiveTab::Settings => {
                     render_settings(
                         ui,
                         &mut self.i18n,
-                        &mut self.current_theme,
-                        &mut self.root_dir,
+                        &mut self.config,
+                        &self.settings_status,
+                        &mut settings_actions,
                     );
                 }
             }
@@ -292,8 +388,27 @@ impl eframe::App for AmpApp {
             self.handle_service_action(action);
         }
 
+        for action in php_actions {
+            self.handle_php_server_action(action);
+        }
+
         for item in downloads_to_start {
             self.start_package_download(item);
+        }
+
+        for action in settings_actions {
+            match action {
+                SettingsAction::Save => {
+                    let _ = self.config.save(&self.config_path);
+                    self.settings_status = Some(self.i18n.t("settings_saved").to_string());
+                }
+                SettingsAction::ResetDefaults => {
+                    self.config.reset_to_defaults();
+                    let _ = self.config.save(&self.config_path);
+                    self.i18n.set_language(&self.config.language);
+                    self.settings_status = Some("Valores por omissão restaurados!".to_string());
+                }
+            }
         }
 
         if refresh_versions_requested {

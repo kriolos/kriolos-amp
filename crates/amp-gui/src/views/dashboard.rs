@@ -1,5 +1,5 @@
 use crate::i18n::I18n;
-use amp_core::models::{ServiceInfo, ServiceStatus, ServiceType};
+use amp_core::models::{AppConfig, ServiceInfo, ServiceStatus, ServiceType};
 use amp_core::PortChecker;
 use egui::{Color32, RichText, Ui};
 
@@ -15,6 +15,7 @@ pub fn render_dashboard(
     ui: &mut Ui,
     i18n: &I18n,
     services: &[ServiceInfo],
+    config: &AppConfig,
     actions: &mut Vec<ServiceAction>,
 ) {
     ui.add_space(8.0);
@@ -43,51 +44,68 @@ pub fn render_dashboard(
         });
     });
 
-    ui.add_space(16.0);
+    ui.add_space(14.0);
 
-    // 3 Service cards grid
+    // Service cards: Grid with 2 rows of up to 3 cards
+    let primary_services = [ServiceType::Apache, ServiceType::Php, ServiceType::Mariadb];
     ui.columns(3, |columns| {
-        for (i, service) in services.iter().enumerate() {
-            let col = &mut columns[i];
-            render_service_card(col, i18n, service, actions);
+        for (i, st) in primary_services.iter().enumerate() {
+            if let Some(info) = services.iter().find(|s| s.service_type == *st) {
+                render_service_card(&mut columns[i], i18n, info, actions);
+            }
         }
     });
 
-    ui.add_space(24.0);
+    ui.add_space(10.0);
+
+    let secondary_services = [ServiceType::Mysql, ServiceType::Postgresql];
+    ui.columns(2, |columns| {
+        for (i, st) in secondary_services.iter().enumerate() {
+            if let Some(info) = services.iter().find(|s| s.service_type == *st) {
+                render_service_card(&mut columns[i], i18n, info, actions);
+            }
+        }
+    });
+
+    ui.add_space(20.0);
     ui.separator();
-    ui.add_space(12.0);
+    ui.add_space(10.0);
 
     // Quick shortcuts
     ui.heading(RichText::new(i18n.t("quick_actions")).size(16.0));
     ui.add_space(8.0);
     ui.horizontal(|ui| {
         if ui.button(format!("📁 {}", i18n.t("open_www"))).clicked() {
-            let _ = open::that("www");
+            let _ = open::that(&config.root_www_dir);
         }
-        if ui.button(format!("🌐 {}", i18n.t("open_localhost"))).clicked() {
-            let _ = open::that("http://localhost:8080");
+        if ui.button(format!("🌐 Localhost (: {})", config.apache_port)).clicked() {
+            let _ = open::that(format!("http://localhost:{}", config.apache_port));
         }
-        if ui.button(format!("🐬 {}", i18n.t("open_phpmyadmin"))).clicked() {
-            let _ = open::that("http://localhost:8080/phpmyadmin");
+        if ui.button(format!("🐬 phpMyAdmin (Apache)")).clicked() {
+            let _ = open::that(format!("http://localhost:{}/phpmyadmin", config.apache_port));
         }
-        if ui.button(format!("🐘 {}", i18n.t("open_phpinfo"))).clicked() {
-            let _ = open::that("http://localhost:8080/phpinfo.php");
+        if ui.button(format!("🐘 phpinfo()")).clicked() {
+            let _ = open::that(format!("http://localhost:{}/phpinfo.php", config.apache_port));
         }
     });
 
-    ui.add_space(20.0);
+    ui.add_space(18.0);
     ui.separator();
-    ui.add_space(12.0);
+    ui.add_space(10.0);
 
     // Port status indicators
     ui.heading(RichText::new(i18n.t("ports_status")).size(16.0));
     ui.add_space(8.0);
     ui.horizontal(|ui| {
-        render_port_pill(ui, i18n, "HTTP (Apache)", 8080);
-        ui.add_space(16.0);
-        render_port_pill(ui, i18n, "HTTPS (SSL)", 8443);
-        ui.add_space(16.0);
-        render_port_pill(ui, i18n, "MySQL/MariaDB", 3306);
+        render_port_pill(ui, i18n, "Apache HTTP", config.apache_port);
+        ui.add_space(12.0);
+        render_port_pill(ui, i18n, "Apache SSL", config.apache_ssl_port);
+        ui.add_space(12.0);
+        render_port_pill(ui, i18n, "MariaDB", config.mariadb_port);
+        ui.add_space(12.0);
+        render_port_pill(ui, i18n, "MySQL", config.mysql_port);
+        ui.add_space(12.0);
+        render_port_pill(ui, i18n, "PostgreSQL", config.postgresql_port);
     });
 }
 
@@ -100,16 +118,9 @@ fn render_service_card(
     egui::Frame::group(ui.style())
         .inner_margin(12.0)
         .show(ui, |ui| {
-            let icon = match service.service_type {
-                ServiceType::Apache => "🌐",
-                ServiceType::Database => "🗄️",
-                ServiceType::Php => "🐘",
-                ServiceType::Tool => "🛠️",
-            };
-
             ui.horizontal(|ui| {
-                ui.label(RichText::new(icon).size(22.0));
-                ui.heading(RichText::new(service.service_type.display_name()).size(15.0));
+                ui.label(RichText::new(service.service_type.icon()).size(22.0));
+                ui.heading(RichText::new(service.service_type.display_name()).size(14.0));
             });
 
             ui.add_space(8.0);
@@ -164,7 +175,7 @@ fn render_service_card(
                 }
             });
 
-            ui.add_space(12.0);
+            ui.add_space(10.0);
 
             // Action buttons
             ui.horizontal(|ui| {
