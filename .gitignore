@@ -1,0 +1,13 @@
+/target
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Logs and runtime files
+*.log
+/run/
+/bin/downloads/

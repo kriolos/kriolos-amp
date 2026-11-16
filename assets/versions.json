@@ -1,0 +1,71 @@
+{
+  "updated_at": "2026-11-16T11:00:00Z",
+  "packages": [
+    {
+      "id": "PHP 8.3 Core",
+      "service_type": "Php",
+      "version": "8.3.13",
+      "platform": "linux-x86_64",
+      "url": "https://github.com/php/php-src/archive/refs/tags/php-8.3.13.tar.gz",
+      "sha256": null,
+      "size_bytes": 19500000,
+      "recommended": true,
+      "description": "PHP 8.3 LTS com suporte a Typed Class Constants, JIT e novos recursos de desempenho."
+    },
+    {
+      "id": "PHP 8.2 Core",
+      "service_type": "Php",
+      "version": "8.2.25",
+      "platform": "linux-x86_64",
+      "url": "https://github.com/php/php-src/archive/refs/tags/php-8.2.25.tar.gz",
+      "sha256": null,
+      "size_bytes": 18900000,
+      "recommended": false,
+      "description": "PHP 8.2 estável com suporte a classes Readonly e tipos DNF."
+    },
+    {
+      "id": "Apache HTTP Server",
+      "service_type": "Apache",
+      "version": "2.4.62",
+      "platform": "linux-x86_64",
+      "url": "https://archive.apache.org/dist/httpd/httpd-2.4.62.tar.gz",
+      "sha256": null,
+      "size_bytes": 9800000,
+      "recommended": true,
+      "description": "Servidor Web Apache 2.4 de alta performance com suporte a mod_rewrite e HTTP/2."
+    },
+    {
+      "id": "MariaDB Server",
+      "service_type": "Database",
+      "version": "11.4.3",
+      "platform": "linux-x86_64",
+      "url": "https://downloads.mariadb.org/interstitial/mariadb-11.4.3/source/mariadb-11.4.3.tar.gz",
+      "sha256": null,
+      "size_bytes": 85000000,
+      "recommended": true,
+      "description": "Base de dados MariaDB 11.4 LTS compatível com MySQL, otimizada para transações rápidas."
+    },
+    {
+      "id": "PHP 8.3 Windows x64",
+      "service_type": "Php",
+      "version": "8.3.13",
+      "platform": "windows-x86_64",
+      "url": "https://windows.php.net/downloads/releases/php-8.3.13-Win32-vs16-x64.zip",
+      "sha256": null,
+      "size_bytes": 31000000,
+      "recommended": true,
+      "description": "PHP 8.3 Thread-Safe para Windows x64."
+    },
+    {
+      "id": "Apache 2.4 Windows x64",
+      "service_type": "Apache",
+      "version": "2.4.62",
+      "platform": "windows-x86_64",
+      "url": "https://www.apachelounge.com/download/VS17/binaries/httpd-2.4.62-240904-win64-VS17.zip",
+      "sha256": null,
+      "size_bytes": 12500000,
+      "recommended": true,
+      "description": "Apache 2.4 compilado com VS17 para Windows 64-bit."
+    }
+  ]
+}
