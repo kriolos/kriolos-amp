@@ -9,7 +9,7 @@ use crate::views::{
     vhosts::render_vhosts,
 };
 use amp_core::models::{
-    AppConfig, DownloadState, PackageItem, PackageKind, ServiceType, VersionManifest,
+    AppConfig, DownloadState, LogEvent, PackageItem, PackageKind, ServiceType, VersionManifest,
 };
 use amp_core::{PackageManager, ServiceManager};
 use egui::{Color32, RichText, Visuals};
@@ -38,7 +38,7 @@ pub struct AmpApp {
     service_manager: Arc<Mutex<ServiceManager>>,
     manifest: Option<VersionManifest>,
     installed_versions: Vec<(ServiceType, Vec<String>)>,
-    active_download: Option<(String, DownloadState)>,
+    active_download: Option<(String, String, DownloadState)>,
     download_rx: Option<mpsc::Receiver<DownloadState>>,
     search_log_filter: String,
     selected_service_filter: Option<ServiceType>,
@@ -77,14 +77,16 @@ impl AmpApp {
         };
 
         let lang = config.language.clone();
+        let i18n = I18n::new(&lang);
+        let ready_msg = i18n.t("system_ready").to_string();
 
         let mut app = Self {
             current_tab: ActiveTab::Dashboard,
-            i18n: I18n::new(&lang),
+            i18n,
             config,
             config_path,
             settings_status: None,
-            status_bar_message: Some(("Sistema pronto e inicializado.".to_string(), false)),
+            status_bar_message: Some((ready_msg, false)),
             service_manager,
             manifest,
             installed_versions: Vec::new(),
@@ -118,17 +120,46 @@ impl AmpApp {
     fn start_package_download(&mut self, item: PackageItem) {
         let (tx, rx) = mpsc::channel(64);
         let pkg_label = format!("{} v{}", item.id, item.version);
-        self.active_download = Some((pkg_label.clone(), DownloadState::Downloading {
+        let pkg_url = item.url.clone();
+        self.active_download = Some((pkg_label.clone(), pkg_url.clone(), DownloadState::Downloading {
             downloaded_bytes: 0,
             total_bytes: item.size_bytes,
             percent: 0.0,
         }));
         self.download_rx = Some(rx);
-        self.status_bar_message = Some((format!("A descarregar {}", pkg_label), false));
+        self.status_bar_message = Some((format!("{}...", self.i18n.t("downloading")), false));
 
         let destination = self.config.bin_dir.clone();
+        let sm_arc = Arc::clone(&self.service_manager);
+        let item_id = item.id.clone();
+        let url_clone = item.url.clone();
+
+        if let Ok(sm) = self.service_manager.lock() {
+            sm.add_log_event(LogEvent::DownloadStarted {
+                item_id: item_id.clone(),
+                url: url_clone.clone(),
+            });
+        }
+
         self.tokio_handle.spawn(async move {
-            let _ = PackageManager::download_and_extract(&item, &destination, Some(tx)).await;
+            let res = PackageManager::download_and_extract(&item, &destination, Some(tx)).await;
+            if let Ok(sm) = sm_arc.lock() {
+                match res {
+                    Ok(_path) => {
+                        sm.add_log_event(LogEvent::DownloadCompleted {
+                            item_id,
+                            url: url_clone,
+                        });
+                    }
+                    Err(err) => {
+                        sm.add_log_event(LogEvent::DownloadFailed {
+                            item_id,
+                            url: url_clone,
+                            error: err.to_string(),
+                        });
+                    }
+                }
+            }
         });
     }
 
@@ -147,16 +178,12 @@ impl AmpApp {
                 if let Ok(mut sm) = self.service_manager.lock() {
                     match sm.start_service(st, "default", port) {
                         Ok(()) => {
-                            self.status_bar_message = Some((
-                                format!("{} iniciado com sucesso na porta {}", st.display_name(), port),
-                                false,
-                            ));
+                            let msg = format!("{} :{}", st.display_name(), port);
+                            self.status_bar_message = Some((msg, false));
                         }
                         Err(err) => {
-                            self.status_bar_message = Some((
-                                format!("Falha ao iniciar {}: {}", st.display_name(), err),
-                                true,
-                            ));
+                            let err_msg = self.i18n.format_error(&err);
+                            self.status_bar_message = Some((err_msg, true));
                         }
                     }
                 }
@@ -164,7 +191,8 @@ impl AmpApp {
             ServiceAction::Stop(st) => {
                 if let Ok(mut sm) = self.service_manager.lock() {
                     let _ = sm.stop_service(st);
-                    self.status_bar_message = Some((format!("{} parado.", st.display_name()), false));
+                    let msg = format!("{} {}", st.display_name(), self.i18n.t("offline"));
+                    self.status_bar_message = Some((msg, false));
                 }
             }
             ServiceAction::Restart(st) => {
@@ -173,16 +201,12 @@ impl AmpApp {
                     let _ = sm.stop_service(st);
                     match sm.start_service(st, "default", port) {
                         Ok(()) => {
-                            self.status_bar_message = Some((
-                                format!("{} reiniciado na porta {}", st.display_name(), port),
-                                false,
-                            ));
+                            let msg = format!("{} :{}", st.display_name(), port);
+                            self.status_bar_message = Some((msg, false));
                         }
                         Err(err) => {
-                            self.status_bar_message = Some((
-                                format!("Falha ao reiniciar {}: {}", st.display_name(), err),
-                                true,
-                            ));
+                            let err_msg = self.i18n.format_error(&err);
+                            self.status_bar_message = Some((err_msg, true));
                         }
                     }
                 }
@@ -192,20 +216,20 @@ impl AmpApp {
                 if let Ok(mut sm) = self.service_manager.lock() {
                     for (st, port) in ports {
                         if let Err(err) = sm.start_service(st, "default", port) {
-                            errors.push(format!("{}: {}", st.display_name(), err));
+                            errors.push(self.i18n.format_error(&err));
                         }
                     }
                 }
                 if errors.is_empty() {
-                    self.status_bar_message = Some(("Todos os serviços iniciados com sucesso.".to_string(), false));
+                    self.status_bar_message = Some((self.i18n.t("all_started").to_string(), false));
                 } else {
-                    self.status_bar_message = Some((format!("Erros ao iniciar: {}", errors.join("; ")), true));
+                    self.status_bar_message = Some((errors.join("; "), true));
                 }
             }
             ServiceAction::StopAll => {
                 if let Ok(mut sm) = self.service_manager.lock() {
                     sm.stop_all();
-                    self.status_bar_message = Some(("Todos os serviços foram parados.".to_string(), false));
+                    self.status_bar_message = Some((self.i18n.t("all_stopped").to_string(), false));
                 }
             }
         }
@@ -220,15 +244,13 @@ impl AmpApp {
                         match sm.start_php_server(&inst, php_ver) {
                             Ok(()) => {
                                 self.status_bar_message = Some((
-                                    format!("Servidor PHP '{}' ativo em http://{}:{}", inst.name, inst.host, inst.port),
+                                    format!("PHP '{}' :{}", inst.name, inst.port),
                                     false,
                                 ));
                             }
                             Err(err) => {
-                                self.status_bar_message = Some((
-                                    format!("Falha ao iniciar servidor PHP '{}': {}", inst.name, err),
-                                    true,
-                                ));
+                                let err_msg = self.i18n.format_error(&err);
+                                self.status_bar_message = Some((err_msg, true));
                             }
                         }
                     }
@@ -237,14 +259,12 @@ impl AmpApp {
             PhpServerAction::Stop(id) => {
                 if let Ok(mut sm) = self.service_manager.lock() {
                     let _ = sm.stop_php_server(&id);
-                    self.status_bar_message = Some(("Servidor PHP parado.".to_string(), false));
+                    self.status_bar_message = Some((self.i18n.t("offline").to_string(), false));
                 }
             }
             PhpServerAction::Add(instance) => {
-                let name = instance.name.clone();
                 self.config.php_servers.push(instance);
                 let _ = self.config.save(&self.config_path);
-                self.status_bar_message = Some((format!("Nova instância '{}' criada.", name), false));
             }
             PhpServerAction::Remove(id) => {
                 if let Ok(mut sm) = self.service_manager.lock() {
@@ -252,7 +272,6 @@ impl AmpApp {
                 }
                 self.config.php_servers.retain(|s| s.id != id);
                 let _ = self.config.save(&self.config_path);
-                self.status_bar_message = Some(("Instância de servidor PHP removida.".to_string(), false));
             }
         }
     }
@@ -264,13 +283,13 @@ impl eframe::App for AmpApp {
         let mut should_refresh_after_dl = false;
         if let Some(rx) = &mut self.download_rx {
             while let Ok(state) = rx.try_recv() {
-                if let Some((name, current_state)) = &mut self.active_download {
+                if let Some((name, url, current_state)) = &mut self.active_download {
                     *current_state = state.clone();
                     if matches!(state, DownloadState::Completed) {
-                        self.status_bar_message = Some((format!("✓ Download de {} concluído com sucesso!", name), false));
+                        self.status_bar_message = Some((format!("{} ({})", self.i18n.t("download_complete"), name), false));
                         should_refresh_after_dl = true;
                     } else if let DownloadState::Failed(err) = &state {
-                        self.status_bar_message = Some((format!("⚠ Erro no download de {}: {}", name, err), true));
+                        self.status_bar_message = Some((format!("⚠ {}: {} [{}]", self.i18n.t("error"), err, url), true));
                         should_refresh_after_dl = true;
                     }
                 }
@@ -313,7 +332,7 @@ impl eframe::App for AmpApp {
                         if *is_error {
                             if ui
                                 .button(
-                                    RichText::new("📜 Ver Logs")
+                                    RichText::new(format!("📜 {}", self.i18n.t("view_logs")))
                                         .color(Color32::from_rgb(96, 165, 250))
                                         .underline()
                                         .size(11.0),
@@ -327,7 +346,7 @@ impl eframe::App for AmpApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
-                            RichText::new("AMP Control v0.1.0 • Pronto")
+                            RichText::new("AMP Control v0.1.0")
                                 .color(Color32::DARK_GRAY)
                                 .size(11.0),
                         );
@@ -377,7 +396,7 @@ impl eframe::App for AmpApp {
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                     ui.add_space(10.0);
                     ui.label(
-                        RichText::new("Cross-Platform • 100% Configurable")
+                        RichText::new("Cross-Platform • Multi-language")
                             .color(Color32::DARK_GRAY)
                             .size(10.0),
                     );
@@ -484,8 +503,7 @@ impl eframe::App for AmpApp {
                     render_configs(ui, &self.i18n);
                 }
                 ActiveTab::Logs => {
-                    let log_entries: Vec<amp_core::service_manager::LogMessage> = logs;
-                    render_logs(ui, &self.i18n, &log_entries, &mut self.search_log_filter);
+                    render_logs(ui, &self.i18n, &logs, &mut self.search_log_filter);
                 }
                 ActiveTab::Settings => {
                     render_settings(
@@ -517,14 +535,14 @@ impl eframe::App for AmpApp {
                 SettingsAction::Save => {
                     let _ = self.config.save(&self.config_path);
                     self.settings_status = Some(self.i18n.t("settings_saved").to_string());
-                    self.status_bar_message = Some(("Definições guardadas com sucesso.".to_string(), false));
+                    self.status_bar_message = Some((self.i18n.t("settings_saved").to_string(), false));
                 }
                 SettingsAction::ResetDefaults => {
                     self.config.reset_to_defaults();
                     let _ = self.config.save(&self.config_path);
                     self.i18n.set_language(&self.config.language);
-                    self.settings_status = Some("Valores por omissão restaurados!".to_string());
-                    self.status_bar_message = Some(("Valores por omissão restaurados.".to_string(), false));
+                    self.settings_status = Some(self.i18n.t("defaults_restored").to_string());
+                    self.status_bar_message = Some((self.i18n.t("defaults_restored").to_string(), false));
                 }
             }
         }

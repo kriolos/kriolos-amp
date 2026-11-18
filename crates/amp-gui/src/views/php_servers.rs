@@ -4,8 +4,8 @@ use amp_core::PortChecker;
 use egui::{Color32, RichText, Ui};
 
 pub enum PhpServerAction {
-    Start(String), // instance_id
-    Stop(String),  // instance_id
+    Start(String),
+    Stop(String),
     Add(PhpServerInstance),
     Remove(String),
 }
@@ -52,7 +52,7 @@ pub fn render_php_servers(
                 ui.label(format!("{}:", i18n.t("doc_root")));
                 ui.add(egui::TextEdit::singleline(new_server_root).hint_text("ex.: www/api"));
 
-                if ui.button("Criar Instância").clicked() {
+                if ui.button(i18n.t("create_instance")).clicked() {
                     let id = format!("php-inst-{}", new_server_port);
                     let instance = PhpServerInstance {
                         id,
@@ -99,39 +99,39 @@ pub fn render_php_servers(
                         // Status Badge
                         if is_running {
                             ui.label(
-                                RichText::new("● ATIVO")
+                                RichText::new(format!("● {}", i18n.t("online")))
                                     .color(Color32::from_rgb(34, 197, 94))
                                     .strong(),
                             );
                         } else if port_busy {
                             ui.label(
-                                RichText::new("⚠ Porta Ocupada")
+                                RichText::new(format!("⚠ {}", i18n.t("port_busy")))
                                     .color(Color32::from_rgb(234, 179, 8))
                                     .size(11.0),
                             );
                         } else {
                             ui.label(
-                                RichText::new("○ Parado")
+                                RichText::new(format!("○ {}", i18n.t("offline")))
                                     .color(Color32::GRAY),
                             );
                         }
 
                         // Action buttons
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button("🗑 Remover").clicked() {
+                            if ui.button(format!("🗑 {}", i18n.t("remove"))).clicked() {
                                 actions.push(PhpServerAction::Remove(inst.id.clone()));
                             }
 
-                            if ui.button("🌐 Abrir no Navegador").clicked() {
+                            if ui.button(format!("🌐 {}", i18n.t("open_in_browser"))).clicked() {
                                 let _ = open::that(format!("http://{}:{}", inst.host, inst.port));
                             }
 
                             if is_running {
-                                if ui.button("⏹ Parar").clicked() {
+                                if ui.button(format!("⏹ {}", i18n.t("stop"))).clicked() {
                                     actions.push(PhpServerAction::Stop(inst.id.clone()));
                                 }
                             } else {
-                                if ui.button(RichText::new("▶ Iniciar").strong()).clicked() {
+                                if ui.button(RichText::new(format!("▶ {}", i18n.t("start"))).strong()).clicked() {
                                     actions.push(PhpServerAction::Start(inst.id.clone()));
                                 }
                             }
@@ -140,9 +140,15 @@ pub fn render_php_servers(
 
                     ui.add_space(4.0);
                     ui.label(
-                        RichText::new(format!("Pasta Raiz: {} | Host: {}", inst.doc_root, inst.host))
-                            .color(Color32::GRAY)
-                            .size(12.0),
+                        RichText::new(format!(
+                            "{}: {} | {}: {}",
+                            i18n.t("doc_root"),
+                            inst.doc_root,
+                            i18n.t("host"),
+                            inst.host
+                        ))
+                        .color(Color32::GRAY)
+                        .size(12.0),
                     );
                 });
             ui.add_space(8.0);

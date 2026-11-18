@@ -9,7 +9,7 @@ pub fn render_versions(
     i18n: &I18n,
     manifest: Option<&VersionManifest>,
     installed_versions: &[(ServiceType, Vec<String>)],
-    active_download: Option<&(String, DownloadState)>,
+    active_download: Option<&(String, String, DownloadState)>,
     selected_service_filter: &mut Option<ServiceType>,
     selected_kind_filter: &mut Option<PackageKind>,
     downloads_to_start: &mut Vec<PackageItem>,
@@ -30,12 +30,20 @@ pub fn render_versions(
     ui.add_space(10.0);
 
     // Active download progress bar
-    if let Some((pkg_name, state)) = active_download {
+    if let Some((pkg_name, url, state)) = active_download {
         egui::Frame::group(ui.style())
             .fill(ui.visuals().faint_bg_color)
             .inner_margin(12.0)
             .show(ui, |ui| {
-                ui.label(RichText::new(format!("⚡ {}", pkg_name)).strong());
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(format!("⚡ {}", pkg_name)).strong());
+                    ui.label(
+                        RichText::new(url)
+                            .monospace()
+                            .size(10.5)
+                            .color(Color32::from_rgb(156, 163, 175)),
+                    );
+                });
                 match state {
                     DownloadState::Downloading {
                         percent,
@@ -65,9 +73,15 @@ pub fn render_versions(
                     }
                     DownloadState::Failed(err) => {
                         ui.label(
-                            RichText::new(format!("⚠ Erro: {}", err))
+                            RichText::new(format!("⚠ {}: {}", i18n.t("error"), err))
                                 .color(Color32::from_rgb(239, 68, 68))
                                 .strong(),
+                        );
+                        ui.label(
+                            RichText::new(format!("URL: {}", url))
+                                .color(Color32::from_rgb(248, 113, 113))
+                                .monospace()
+                                .size(11.0),
                         );
                     }
                     DownloadState::Idle => {}
@@ -78,7 +92,7 @@ pub fn render_versions(
 
     // Filter Bar - Services
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Serviço:").strong());
+        ui.label(RichText::new(format!("{}:", i18n.t("service_label"))).strong());
 
         let service_options = [
             (None, i18n.t("filter_all")),
@@ -102,7 +116,7 @@ pub fn render_versions(
 
     // Filter Bar - Package Kind
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Tipo:").strong());
+        ui.label(RichText::new(format!("{}:", i18n.t("type_label"))).strong());
 
         let kind_options = [
             (None, i18n.t("filter_kind_all")),
@@ -142,7 +156,7 @@ pub fn render_versions(
 
                 shown_count += 1;
 
-                let is_installed = installed_versions
+                let is_downloaded = installed_versions
                     .iter()
                     .find(|(st, _)| *st == pkg.service_type)
                     .map(|(_, vers)| vers.contains(&pkg.version))
@@ -159,11 +173,11 @@ pub fn render_versions(
                                 ui.label(RichText::new(format!("v{}", pkg.version)).monospace());
                             }
 
-                            // Badge Kind
+                            // Translated Badge Kind
                             match pkg.package_kind {
                                 PackageKind::Binary => {
                                     ui.label(
-                                        RichText::new("🚀 Binário Pronto")
+                                        RichText::new(i18n.t("badge_binary"))
                                             .color(Color32::from_rgb(34, 197, 94))
                                             .size(11.0)
                                             .strong(),
@@ -171,7 +185,7 @@ pub fn render_versions(
                                 }
                                 PackageKind::Source => {
                                     ui.label(
-                                        RichText::new("📦 Código-fonte")
+                                        RichText::new(i18n.t("badge_source"))
                                             .color(Color32::from_rgb(249, 115, 22))
                                             .size(11.0),
                                     );
@@ -180,7 +194,7 @@ pub fn render_versions(
 
                             if pkg.recommended {
                                 ui.label(
-                                    RichText::new("⭐ Recomendado")
+                                    RichText::new(format!("⭐ {}", i18n.t("recommended")))
                                         .color(Color32::from_rgb(234, 179, 8))
                                         .size(11.0),
                                 );
@@ -200,9 +214,15 @@ pub fn render_versions(
                                     {
                                         let _ = open::that(&pkg.url);
                                     }
-                                } else if is_installed {
+                                } else if is_downloaded {
+                                    if ui
+                                        .button(format!("🔄 {}", i18n.t("redownload")))
+                                        .clicked()
+                                    {
+                                        downloads_to_start.push(pkg.clone());
+                                    }
                                     ui.label(
-                                        RichText::new(format!("✓ {}", i18n.t("installed")))
+                                        RichText::new(format!("✓ {}", i18n.t("downloaded")))
                                             .color(Color32::from_rgb(34, 197, 94)),
                                     );
                                 } else {
@@ -226,10 +246,10 @@ pub fn render_versions(
 
             if shown_count == 0 {
                 ui.add_space(20.0);
-                ui.label(RichText::new("Nenhum pacote encontrado com os filtros selecionados.").italics());
+                ui.label(RichText::new(i18n.t("no_packages_found")).italics());
             }
         } else {
-            ui.label("A carregar catálogo de versões...");
+            ui.label(i18n.t("loading_catalog"));
         }
     });
 }

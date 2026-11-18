@@ -10,7 +10,7 @@ pub fn render_configs(ui: &mut Ui, i18n: &I18n) {
 
     ui.add_space(16.0);
 
-    ui.heading(RichText::new("Extensões PHP Comuns").size(16.0));
+    ui.heading(RichText::new(i18n.t("php_extensions_title")).size(16.0));
     ui.add_space(8.0);
 
     egui::Grid::new("php_extensions_grid")
@@ -43,17 +43,17 @@ pub fn render_configs(ui: &mut Ui, i18n: &I18n) {
     ui.separator();
     ui.add_space(12.0);
 
-    ui.heading(RichText::new("Editar Ficheiros de Configuração").size(16.0));
+    ui.heading(RichText::new(i18n.t("edit_configs_title")).size(16.0));
     ui.add_space(8.0);
     ui.horizontal(|ui| {
-        if ui.button("📝 Editar httpd.conf (Apache)").clicked() {}
-        if ui.button("📝 Editar php.ini (PHP)").clicked() {}
-        if ui.button("📝 Editar my.ini (MySQL)").clicked() {}
+        if ui.button(i18n.t("edit_apache_conf")).clicked() {}
+        if ui.button(i18n.t("edit_php_ini")).clicked() {}
+        if ui.button(i18n.t("edit_mysql_ini")).clicked() {}
     });
 
     ui.add_space(16.0);
     ui.label(
-        RichText::new("💡 As configurações são geradas dinamicamente com variáveis de ambiente portáteis ({ROOT_DIR}, etc.).")
+        RichText::new(i18n.t("configs_info"))
             .color(Color32::GRAY)
             .italics(),
     );

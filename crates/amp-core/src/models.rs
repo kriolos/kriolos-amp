@@ -20,7 +20,7 @@ impl ServiceType {
             ServiceType::Mariadb => "MariaDB Database",
             ServiceType::Mysql => "MySQL Database",
             ServiceType::Postgresql => "PostgreSQL Database",
-            ServiceType::Tool => "Ferramenta / Runtime",
+            ServiceType::Tool => "Tools & Runtimes",
         }
     }
 
@@ -62,11 +62,17 @@ impl ServiceType {
             ServiceType::Apache => "🌐",
             ServiceType::Php => "🐘",
             ServiceType::Mariadb => "🗄️",
-            ServiceType::Mysql => "🗄️",
-            ServiceType::Postgresql => "🗄️",
+            ServiceType::Mysql => "🐬",
+            ServiceType::Postgresql => "🐘",
             ServiceType::Tool => "🛠️",
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum VersionSource {
+    Downloaded,
+    System,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -75,20 +81,28 @@ pub enum PackageKind {
     Source,
 }
 
-impl PackageKind {
-    pub fn display_label(&self) -> &'static str {
-        match self {
-            PackageKind::Binary => "Binário Pré-compilado",
-            PackageKind::Source => "Código-fonte",
-        }
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ServiceError {
+    PortInUse { port: u16 },
+    BinaryNotFound { service: ServiceType, path: String },
+    PhpCliNotFound,
+    ExecutionFailed { service: ServiceType, details: String },
+    PhpServerFailed { name: String, details: String },
+}
 
-    pub fn badge(&self) -> &'static str {
-        match self {
-            PackageKind::Binary => "🚀 Binário",
-            PackageKind::Source => "📦 Fonte",
-        }
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LogEvent {
+    Starting { service: ServiceType, port: u16 },
+    Started { service: ServiceType, pid: u32, port: u16 },
+    Stopping { service: ServiceType },
+    Stopped { service: ServiceType },
+    StartingPhpServer { name: String, host: String, port: u16, doc_root: String },
+    PhpServerStarted { name: String, host: String, port: u16, pid: u32 },
+    PhpServerStopped { name: String },
+    Error(ServiceError),
+    DownloadStarted { item_id: String, url: String },
+    DownloadFailed { item_id: String, url: String, error: String },
+    DownloadCompleted { item_id: String, url: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -96,7 +110,7 @@ pub enum ServiceStatus {
     Stopped,
     Starting,
     Running { pid: u32, port: u16 },
-    Error(String),
+    Error(ServiceError),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,6 +118,7 @@ pub struct ServiceInfo {
     pub service_type: ServiceType,
     pub status: ServiceStatus,
     pub active_version: Option<String>,
+    pub version_source: Option<VersionSource>,
     pub port: u16,
     pub installed_versions: Vec<String>,
 }
@@ -123,7 +138,7 @@ impl Default for PhpServerInstance {
     fn default() -> Self {
         Self {
             id: "default-php-server".to_string(),
-            name: "Servidor PHP Principal".to_string(),
+            name: "Default PHP Server".to_string(),
             host: "127.0.0.1".to_string(),
             port: 8000,
             doc_root: "www".to_string(),
@@ -222,7 +237,7 @@ pub struct PackageItem {
     #[serde(default = "default_package_kind")]
     pub package_kind: PackageKind,
     pub version: String,
-    pub platform: String, // e.g. "linux-x86_64", "windows-x86_64", "any"
+    pub platform: String,
     pub url: String,
     pub sha256: Option<String>,
     pub size_bytes: Option<u64>,

@@ -72,12 +72,12 @@
       "package_kind": "Binary",
       "version": "8.4.3",
       "platform": "windows-x86_64",
-      "url": "https://dev.mysql.com/get/Downloads/MySQL-8.4/mysql-8.4.3-winx64.zip",
+      "url": "https://dev.mysql.com/downloads/mysql/",
       "sha256": null,
       "size_bytes": 280000000,
       "recommended": true,
-      "description": "MySQL Community Server 8.4 LTS portátil para Windows.",
-      "external_link": false
+      "description": "Página oficial da Oracle MySQL para download da versão portátil Windows 64-bit.",
+      "external_link": true
     },
     {
       "id": "MySQL Community Server 8.4 (Binário Genérico Linux)",
@@ -85,12 +85,12 @@
       "package_kind": "Binary",
       "version": "8.4.3",
       "platform": "linux-x86_64",
-      "url": "https://dev.mysql.com/get/Downloads/MySQL-8.4/mysql-8.4.3-linux-glibc2.28-x86_64.tar.xz",
+      "url": "https://dev.mysql.com/downloads/mysql/",
       "sha256": null,
       "size_bytes": 350000000,
       "recommended": false,
-      "description": "Binário pré-compilado oficial do MySQL 8.4 para Linux glibc.",
-      "external_link": false
+      "description": "Página oficial da Oracle MySQL para download do binário Linux glibc.",
+      "external_link": true
     },
     {
       "id": "PostgreSQL 17.0 (Binário Portátil Windows)",
@@ -119,42 +119,16 @@
       "external_link": false
     },
     {
-      "id": "PHP 8.5 (Win64 VS18 Thread Safe)",
+      "id": "PHP 8.5 Development (Win64 VS17 Thread Safe)",
       "service_type": "Php",
       "package_kind": "Binary",
-      "version": "8.5.7",
+      "version": "8.5.12-dev",
       "platform": "windows-x86_64",
-      "url": "https://windows.php.net/downloads/releases/php-8.5.7-Win32-vs18-x64.zip",
+      "url": "https://downloads.php.net/~windows/releases/archives/php-8.5.12-1-Win32-vs17-x64.zip",
       "sha256": null,
       "size_bytes": 32000000,
-      "recommended": true,
-      "description": "PHP 8.5 de última geração para Windows x64 com suporte ao Apache e servidor embutido.",
-      "external_link": false
-    },
-    {
-      "id": "PHP 8.5 (Binário Estático Linux x64)",
-      "service_type": "Php",
-      "package_kind": "Binary",
-      "version": "8.5.7",
-      "platform": "linux-x86_64",
-      "url": "https://github.com/crazywhalecc/static-php-cli/releases/download/latest/php-8.5.7-cli-linux-x86_64.tar.gz",
-      "sha256": null,
-      "size_bytes": 22000000,
-      "recommended": true,
-      "description": "Binário estático completo e autocontido (não requer glibc específica ou bibliotecas do sistema).",
-      "external_link": false
-    },
-    {
-      "id": "PHP 8.5 (Código-fonte)",
-      "service_type": "Php",
-      "package_kind": "Source",
-      "version": "8.5.7",
-      "platform": "any",
-      "url": "https://github.com/php/php-src/archive/refs/tags/php-8.5.7.tar.gz",
-      "sha256": null,
-      "size_bytes": 20500000,
       "recommended": false,
-      "description": "Código-fonte oficial do PHP 8.5.",
+      "description": "PHP 8.5 snapshot oficial para Windows x64 com suporte a Apache e CLI.",
       "external_link": false
     },
     {
@@ -163,11 +137,24 @@
       "package_kind": "Binary",
       "version": "8.3.13",
       "platform": "windows-x86_64",
-      "url": "https://windows.php.net/downloads/releases/php-8.3.13-Win32-vs16-x64.zip",
+      "url": "https://windows.php.net/downloads/releases/archives/php-8.3.13-Win32-vs16-x64.zip",
       "sha256": null,
       "size_bytes": 31000000,
-      "recommended": false,
-      "description": "PHP 8.3 LTS Thread Safe oficial para Windows.",
+      "recommended": true,
+      "description": "PHP 8.3 LTS Thread Safe oficial para Windows x64.",
+      "external_link": false
+    },
+    {
+      "id": "PHP 8.3 LTS (Binário Linux x64)",
+      "service_type": "Php",
+      "package_kind": "Binary",
+      "version": "8.3.13",
+      "platform": "linux-x86_64",
+      "url": "https://github.com/shivammathur/php-builder/releases/download/8.3/php_8.3+ubuntu22.04.tar.xz",
+      "sha256": null,
+      "size_bytes": 18000000,
+      "recommended": true,
+      "description": "Binário oficial pré-compilado do PHP 8.3 para Linux x64 (tar.xz).",
       "external_link": false
     },
     {

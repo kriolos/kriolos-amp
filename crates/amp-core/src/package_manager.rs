@@ -65,7 +65,7 @@ impl PackageManager {
         let resp = client.get(&item.url).send().await?;
 
         if !resp.status().is_success() {
-            let msg = format!("HTTP Error: {}", resp.status());
+            let msg = format!("HTTP {} ({})", resp.status(), item.url);
             if let Some(tx) = &progress_tx {
                 let _ = tx.send(DownloadState::Failed(msg.clone())).await;
             }
@@ -149,6 +149,8 @@ impl PackageManager {
             Self::extract_zip(&temp_file_path, &target_dir)?;
         } else if file_name.ends_with(".tar.gz") || file_name.ends_with(".tgz") {
             Self::extract_tar_gz(&temp_file_path, &target_dir)?;
+        } else if file_name.ends_with(".tar.xz") || file_name.ends_with(".txz") {
+            Self::extract_tar_xz(&temp_file_path, &target_dir)?;
         } else {
             return Err(PackageError::Archive(format!(
                 "Unsupported archive format: {}",
@@ -226,6 +228,24 @@ impl PackageManager {
         archive
             .unpack(destination)
             .map_err(|e| PackageError::Archive(format!("Failed to unpack tar.gz: {}", e)))?;
+        Ok(())
+    }
+
+    fn extract_tar_xz(archive_path: &Path, destination: &Path) -> Result<(), PackageError> {
+        let status = std::process::Command::new("tar")
+            .arg("-xf")
+            .arg(archive_path)
+            .arg("-C")
+            .arg(destination)
+            .status()
+            .map_err(|e| PackageError::Archive(format!("Failed to execute tar: {}", e)))?;
+
+        if !status.success() {
+            return Err(PackageError::Archive(format!(
+                "tar command exited with error status: {:?}",
+                status.code()
+            )));
+        }
         Ok(())
     }
 }

@@ -8,7 +8,7 @@ pub fn render_vhosts(ui: &mut Ui, i18n: &I18n) {
         ui.heading(RichText::new(i18n.t("vhosts")).strong().size(20.0));
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.button("+ Adicionar Novo VHost").clicked() {}
+            if ui.button(i18n.t("add_vhost")).clicked() {}
         });
     });
 
@@ -21,20 +21,20 @@ pub fn render_vhosts(ui: &mut Ui, i18n: &I18n) {
                 ui.label(RichText::new("localhost").strong().size(16.0));
                 ui.label(RichText::new("(Default)").color(Color32::GRAY));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("Abrir no Navegador").clicked() {
+                    if ui.button(i18n.t("open_in_browser")).clicked() {
                         let _ = open::that("http://localhost:8080");
                     }
                 });
             });
 
             ui.add_space(6.0);
-            ui.label("DocumentRoot: /home/dev/Downloads/UwAmp-4.0.0/amp-control/www");
-            ui.label("Porta: 8080 | SSL: 8443");
+            ui.label(format!("{}: www", i18n.t("doc_root")));
+            ui.label(format!("{}: 8080 | SSL: 8443", i18n.t("port")));
         });
 
     ui.add_space(12.0);
     ui.label(
-        RichText::new("💡 Permite mapear domínios locais personalizados para pastas de projeto (ex.: meuprojeto.local).")
+        RichText::new(i18n.t("vhosts_info"))
             .color(Color32::GRAY)
             .italics(),
     );

@@ -9,7 +9,7 @@ pub fn render_logs(ui: &mut Ui, i18n: &I18n, logs: &[LogMessage], search_filter:
         ui.heading(RichText::new(i18n.t("logs")).strong().size(20.0));
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.add(egui::TextEdit::singleline(search_filter).hint_text("Filtrar logs..."));
+            ui.add(egui::TextEdit::singleline(search_filter).hint_text(i18n.t("filter_logs_hint")));
         });
     });
 
@@ -25,23 +25,24 @@ pub fn render_logs(ui: &mut Ui, i18n: &I18n, logs: &[LogMessage], search_filter:
                 .show(ui, |ui| {
                     if logs.is_empty() {
                         ui.label(
-                            RichText::new("Nenhum registo de log disponível no momento.")
+                            RichText::new(i18n.t("no_logs_available"))
                                 .color(Color32::DARK_GRAY)
                                 .italics(),
                         );
                     }
 
                     for entry in logs {
+                        let (label, formatted_msg, is_error) = i18n.format_log(&entry.event);
+
                         if !search_filter.is_empty()
-                            && !entry
-                                .message
+                            && !formatted_msg
                                 .to_lowercase()
                                 .contains(&search_filter.to_lowercase())
                         {
                             continue;
                         }
 
-                        let text_color = if entry.is_error {
+                        let text_color = if is_error {
                             Color32::from_rgb(248, 113, 113)
                         } else {
                             Color32::from_rgb(209, 213, 219)
@@ -56,14 +57,14 @@ pub fn render_logs(ui: &mut Ui, i18n: &I18n, logs: &[LogMessage], search_filter:
                             );
 
                             ui.label(
-                                RichText::new(format!("[{}]", entry.service_label))
+                                RichText::new(format!("[{}]", label))
                                     .color(Color32::from_rgb(96, 165, 250))
                                     .monospace()
                                     .size(11.0),
                             );
 
                             ui.label(
-                                RichText::new(&entry.message)
+                                RichText::new(&formatted_msg)
                                     .color(text_color)
                                     .monospace()
                                     .size(12.0),

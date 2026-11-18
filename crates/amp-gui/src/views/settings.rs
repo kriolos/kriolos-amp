@@ -38,7 +38,7 @@ pub fn render_settings(
 
     egui::ScrollArea::vertical().show(ui, |ui| {
         // --- 1. General & Preferences ---
-        ui.heading(RichText::new("Geral & Aparência").size(16.0));
+        ui.heading(RichText::new(i18n.t("general_appearance")).size(16.0));
         ui.add_space(6.0);
 
         egui::Grid::new("general_settings_grid")
@@ -122,7 +122,7 @@ pub fn render_settings(
         ui.add_space(10.0);
 
         // --- 3. Directory Paths ---
-        ui.heading(RichText::new("Caminhos de Diretórios").size(16.0));
+        ui.heading(RichText::new(i18n.t("directory_paths")).size(16.0));
         ui.add_space(6.0);
 
         let mut www_str = config.root_www_dir.to_string_lossy().to_string();
@@ -180,7 +180,7 @@ pub fn render_settings(
         );
         ui.add_space(4.0);
         ui.label(
-            RichText::new("💡 O catálogo remoto permite carregar novas versões de PHP, Apache e Bancos sem precisar recompilar ou atualizar o programa.")
+            RichText::new(i18n.t("remote_manifest_info"))
                 .color(Color32::GRAY)
                 .size(12.0),
         );
