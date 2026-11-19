@@ -1,122 +1,122 @@
 = ⚡ AMP Control (Rust + egui)
 :toc: left
 :toclevels: 3
-:toc-title: Índice
+:toc-title: Table of Contents
 :icons: font
 :source-highlighter: highlight.js
 :experimental:
 
-Um painel de controlo moderno, ultrarrápido e multiplataforma para ambientes **AMP** (**Apache** + **MariaDB/MySQL/PostgreSQL** + **PHP**), desenvolvido em **Rust** utilizando **egui** (`eframe`).
+A modern, lightweight, and cross-platform control panel for **AMP** development environments (**Apache** + **MariaDB / MySQL / PostgreSQL** + **PHP**), written in **Rust** using **egui** (`eframe`).
 
-Inspirado no UwAmp, mas reimaginado como uma aplicação **nativa** para **Linux**, **Windows** e **macOS**, eliminando a dependência de Wine ou APIs proprietárias do Windows.
-
----
-
-== 🌟 Funcionalidades
-
-=== 📊 Dashboard Moderno & Responsivo
-* **Grelha fluida e responsiva**:
-  ** Alinhamento dinâmico com quebra de linha (`horizontal_wrapped`) que se adapta de 3 para 2 ou 1 coluna consoante o redimensionamento da janela.
-  ** Cards de serviço simétricos e compactos (240px de largura fixa e altura vertical natural).
-* **Indicadores em tempo real**:
-  ** Estado de execução, PID e portas ativas.
-  ** Indicador visual dinâmico de portas monitorizadas (`PortIndicator`) baseado exclusivamente nos serviços ativos.
-  ** Distinção explícita entre binários do sistema e descarregados: `(Baixado)` ou `(Sistema)`.
-* **Ações rápidas de 1 clique**:
-  ** Iniciar, parar ou reiniciar serviços individuais ou em lote.
-  ** Acesso direto à pasta `www/`, `phpinfo()` e ferramentas web.
-
-=== 🐘 Servidores Embutidos PHP (`php -S`)
-* Gestão e execução de servidores de desenvolvimento PHP leves sem necessidade de Apache.
-* Configuração individual de porta, diretório raiz (*document root*) e versão ativa do PHP.
-* Persistência automática das instâncias em `config.json`.
-
-=== 📦 Gestor de Versões & Catálogo de Downloads
-* Catálogo extensível com versões pré-configuradas (`assets/versions.json`).
-* Distinção rigorosa entre **Binários** (`Binary`) pré-compilados e **Código-fonte** (`Source`).
-* Suporte a links externos (`external_link: true`) para pacotes protegidos contra bots (Oracle MySQL, Microsoft Visual C++ Redistributable).
-* Download assíncrono em background com:
-  ** Barra de progresso suave com percentagem e tamanho transferido.
-  ** Diagnóstico detalhado de erros HTTP exibindo a **URL exata** da tentativa.
-  ** Descompactação automática de formatos `.zip`, `.tar.gz` e `.tar.xz`.
-* Possibilidade de forçar o re-download de versões existentes.
-
-=== 🌐 Internacionalização Completa (i18n)
-* Suporte nativo e expansível a múltiplos idiomas (**Português `pt-PT`** e **Inglês `en-US`**).
-* Alternância instantânea de idioma diretamente pela interface ou barra lateral.
-* **Núcleo desacoplado**: zero cadeias de caracteres em linguagem natural no `amp-core`; erros e eventos transitam através de enums estruturados (`ServiceError`, `LogEvent`).
-
-=== 📜 Registo de Logs em Tempo Real
-* Barra de status persistente no fundo da janela com notificações e indicadores de erro clicáveis.
-* Visualizador de logs com histórico, filtro de pesquisa em tempo real e níveis de severidade.
-
-=== 🎨 Personalização & Temas
-* Suporte integrado a tema Claro (*Light*) e Escuro (*Dark*).
-* Configuração integral desacoplada através do ficheiro `config.json`.
+Inspired by UwAmp, but reimagined from the ground up as a high-performance **native application** for **Linux**, **Windows**, and **macOS**, eliminating any dependency on Wine or legacy Windows-only APIs.
 
 ---
 
-== 🏗️ Estrutura do Projeto
+== 🌟 Key Features
+
+=== 📊 Modern & Responsive Dashboard
+* **Adaptive fluid layout**:
+  ** Dynamic flex-wrap grid (`horizontal_wrapped`) that seamlessly wraps from 3 to 2 or 1 column as the window is resized.
+  ** Symmetrical and compact service cards (fixed 240px width with natural vertical height).
+* **Real-time service monitoring**:
+  ** Live status indicators, process IDs (PID), and active listening ports.
+  ** Dynamic port monitoring pill (`PortIndicator`) reflecting currently active services without hardcoded clutter.
+  ** Clear visual differentiation between system binaries and downloaded packages: `(Downloaded)` or `(System)`.
+* **One-click quick actions**:
+  ** Start, stop, or restart individual services or all services simultaneously.
+  ** Direct shortcuts to open the `www/` root folder, `phpinfo()`, and local web applications.
+
+=== 🐘 Embedded PHP Development Servers (`php -S`)
+* Create, manage, and run lightweight, standalone PHP development web servers without requiring Apache.
+* Individual configuration per instance: custom port, document root, and active PHP binary.
+* Seamless auto-save and persistence in `config.json`.
+
+=== 📦 Package Manager & Version Catalog
+* Integrated extensible catalog (`assets/versions.json`) with pre-configured packages.
+* Strict classification between pre-compiled **Binaries** (`Binary`) and **Source Code** (`Source`).
+* Built-in support for bot-protected external links (`external_link: true`) opening directly in the user's default browser (e.g. Oracle MySQL, Microsoft Visual C++ Redistributable).
+* Asynchronous background downloader with:
+  ** Smooth progress bar displaying percentage and transferred size in MB.
+  ** Comprehensive error handling and diagnostics displaying the **exact URL** on failure.
+  ** Automatic extraction for `.zip`, `.tar.gz`, and `.tar.xz` archives into dedicated binary directories.
+* One-click option to force re-download of already installed packages.
+
+=== 🌐 Complete Internationalization (i18n)
+* Built-in support for multiple languages (**English `en-US`** and **Portuguese `pt-PT`**).
+* Instant runtime language switching directly from the UI without restarting.
+* **Decoupled architecture**: zero hardcoded natural language strings in `amp-core`; all errors and events are transmitted via structured enums (`ServiceError`, `LogEvent`).
+
+=== 📜 Real-time System Logs & Status Bar
+* Persistent bottom status bar showing quick action confirmations, error indicators, and a direct shortcut to logs.
+* Live log stream viewer with auto-scroll, color-coded severity levels, and real-time text filter.
+
+=== 🎨 Customization & Theming
+* Native support for both **Dark Mode** and **Light Mode**.
+* Non-destructive, human-readable configuration entirely stored in `config.json` with reset-to-defaults capability.
+
+---
+
+== 🏗️ Project Architecture
 
 [source,text]
 ----
 amp-control/
-├── Cargo.toml                 # Workspace Cargo
-├── config.json                # Configurações do utilizador e serviços
+├── Cargo.toml                 # Cargo workspace configuration
+├── config.json                # User preferences, port definitions, and server instances
 ├── assets/
-│   └── versions.json          # Catálogo de versões e downloads
+│   └── versions.json          # Pre-configured package catalog & download manifests
 ├── crates/
-│   ├── amp-core/              # Biblioteca Core do sistema
+│   ├── amp-core/              # Backend core engine & business logic
 │   │   ├── src/
-│   │   │   ├── models.rs          # Modelos de dados, enums e erros tipados
-│   │   │   ├── package_manager.rs # Downloader assíncrono e extrator
-│   │   │   ├── port_checker.rs    # Verificação de portas e sockets TCP
-│   │   │   ├── service_manager.rs # Gestão do ciclo de vida dos processos
-│   │   │   └── template_engine.rs # Motor de templates portáteis
-│   └── amp-gui/               # Interface Gráfica com egui / eframe
+│   │   │   ├── models.rs          # Data models, domain types, typed errors & events
+│   │   │   ├── package_manager.rs # Async downloader, checksum & archive extractor
+│   │   │   ├── port_checker.rs    # TCP port probe & conflict detection
+│   │   │   ├── service_manager.rs # Process lifecycle management & supervision
+│   │   │   └── template_engine.rs # Portable configuration template substitutions
+│   └── amp-gui/               # Native graphical interface built with egui / eframe
 │       ├── src/
-│       │   ├── app.rs             # Estado global e navegação
-│       │   ├── i18n.rs            # Tradução e internacionalização
-│       │   ├── main.rs            # Ponto de entrada da aplicação
-│       │   ├── components/        # Componentes visuais modulares
+│       │   ├── app.rs             # Application state, action dispatch & event loop
+│       │   ├── i18n.rs            # Multi-language translation engine
+│       │   ├── main.rs            # Native entrypoint & Tokio runtime setup
+│       │   ├── components/        # Reusable UI widgets
 │       │   │   ├── mod.rs
-│       │   │   ├── port_indicator.rs
-│       │   │   └── service_card.rs
-│       │   └── views/             # Telas e abas da aplicação
-│       │       ├── configs.rs
-│       │       ├── dashboard.rs
-│       │       ├── logs.rs
-│       │       ├── php_servers.rs
-│       │       ├── settings.rs
-│       │       ├── versions.rs
-│       │       └── vhosts.rs
-└── www/                       # Diretório raiz padrão dos sites
+│       │   │   ├── port_indicator.rs  # Dynamic port indicator widget
+│       │   │   └── service_card.rs    # Modular service card component
+│       │   └── views/             # Modular tab views
+│       │       ├── configs.rs         # Configuration file editor
+│       │       ├── dashboard.rs       # Main services grid & quick actions
+│       │       ├── logs.rs            # Real-time searchable log viewer
+│       │       ├── php_servers.rs     # Embedded PHP server instances manager
+│       │       ├── settings.rs        # App settings (theme, language, directories)
+│       │       ├── versions.rs        # Package manager & version switcher
+│       │       └── vhosts.rs          # Virtual host management
+└── www/                       # Default web root directory
     ├── index.php
     └── phpinfo.php
 ----
 
 ---
 
-== 🚀 Como Executar
+== 🚀 Getting Started
 
-=== Pré-requisitos
-* **Rust**: Versão estável recente (1.80+) instalada via https://rustup.rs[rustup].
+=== Prerequisites
+* **Rust**: Recent stable toolchain (1.80+) installed via https://rustup.rs[rustup].
 
-=== Executar em Modo de Desenvolvimento
+=== Run in Development Mode
 [source,bash]
 ----
 cd amp-control
 cargo run -p amp-gui
 ----
 
-=== Compilar Binário Otimizado (Release)
+=== Build Optimized Release Binary
 [source,bash]
 ----
 cargo build --release -p amp-gui
 ./target/release/amp-gui
 ----
 
-=== Executar Testes
+=== Run Test Suite
 [source,bash]
 ----
 cargo test
@@ -124,6 +124,6 @@ cargo test
 
 ---
 
-== 📄 Licença
+== 📄 License
 
-Distribuído sob a licença **MIT** ou **Apache-2.0**.
+Distributed under the **MIT** or **Apache-2.0** license.
