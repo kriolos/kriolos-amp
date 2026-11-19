@@ -73,6 +73,12 @@ impl I18n {
         pt.insert("filter_kind_all", "Todos os Tipos");
         pt.insert("filter_kind_binary", "🚀 Apenas Binários");
         pt.insert("filter_kind_source", "📦 Apenas Código-fonte");
+        pt.insert("os_label", "Sistema");
+        pt.insert("filter_os_all", "Todos");
+        pt.insert("filter_os_current", "💻 SO Atual");
+        pt.insert("filter_os_linux", "🐧 Linux");
+        pt.insert("filter_os_windows", "🪟 Windows");
+        pt.insert("filter_os_macos", "🍎 macOS");
         pt.insert("badge_binary", "🚀 Binário");
         pt.insert("badge_source", "📦 Fonte");
         pt.insert("recommended", "Recomendado");
@@ -195,6 +201,12 @@ impl I18n {
         en.insert("filter_kind_all", "All Types");
         en.insert("filter_kind_binary", "🚀 Binaries Only");
         en.insert("filter_kind_source", "📦 Source Only");
+        en.insert("os_label", "OS");
+        en.insert("filter_os_all", "All");
+        en.insert("filter_os_current", "💻 Current OS");
+        en.insert("filter_os_linux", "🐧 Linux");
+        en.insert("filter_os_windows", "🪟 Windows");
+        en.insert("filter_os_macos", "🍎 macOS");
         en.insert("badge_binary", "🚀 Binary");
         en.insert("badge_source", "📦 Source");
         en.insert("recommended", "Recommended");

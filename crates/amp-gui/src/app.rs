@@ -9,7 +9,7 @@ use crate::views::{
     vhosts::render_vhosts,
 };
 use amp_core::models::{
-    AppConfig, DownloadState, LogEvent, PackageItem, PackageKind, ServiceType, VersionManifest,
+    AppConfig, DownloadState, LogEvent, OsFilter, PackageItem, PackageKind, ServiceType, VersionManifest,
 };
 use amp_core::{PackageManager, ServiceManager};
 use egui::{Color32, RichText, Visuals};
@@ -43,6 +43,7 @@ pub struct AmpApp {
     search_log_filter: String,
     selected_service_filter: Option<ServiceType>,
     selected_kind_filter: Option<PackageKind>,
+    selected_os_filter: OsFilter,
     new_php_server_name: String,
     new_php_server_port: u16,
     new_php_server_root: String,
@@ -95,6 +96,7 @@ impl AmpApp {
             search_log_filter: String::new(),
             selected_service_filter: None,
             selected_kind_filter: None,
+            selected_os_filter: OsFilter::All,
             new_php_server_name: String::new(),
             new_php_server_port: 8000,
             new_php_server_root: "www".to_string(),
@@ -492,6 +494,7 @@ impl eframe::App for AmpApp {
                         self.active_download.as_ref(),
                         &mut self.selected_service_filter,
                         &mut self.selected_kind_filter,
+                        &mut self.selected_os_filter,
                         &mut downloads_to_start,
                         &mut refresh_versions_requested,
                     );

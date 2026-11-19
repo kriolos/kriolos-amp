@@ -247,6 +247,52 @@ pub struct PackageItem {
     pub external_link: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum OsFilter {
+    All,
+    Current,
+    Linux,
+    Windows,
+    MacOs,
+}
+
+impl Default for OsFilter {
+    fn default() -> Self {
+        Self::All
+    }
+}
+
+impl PackageItem {
+    pub fn matches_os(&self, filter: OsFilter) -> bool {
+        match filter {
+            OsFilter::All => true,
+            OsFilter::Current => {
+                let current_os = if cfg!(target_os = "windows") {
+                    "windows"
+                } else if cfg!(target_os = "macos") {
+                    "macos"
+                } else {
+                    "linux"
+                };
+                let plat = self.platform.to_lowercase();
+                plat == "any" || plat.starts_with(current_os)
+            }
+            OsFilter::Linux => {
+                let plat = self.platform.to_lowercase();
+                plat == "any" || plat.starts_with("linux")
+            }
+            OsFilter::Windows => {
+                let plat = self.platform.to_lowercase();
+                plat == "any" || plat.starts_with("windows")
+            }
+            OsFilter::MacOs => {
+                let plat = self.platform.to_lowercase();
+                plat == "any" || plat.starts_with("macos")
+            }
+        }
+    }
+}
+
 fn default_package_kind() -> PackageKind {
     PackageKind::Binary
 }
@@ -262,4 +308,74 @@ pub enum DownloadState {
     Extracting,
     Completed,
     Failed(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_os_filter_matching() {
+        let linux_pkg = PackageItem {
+            id: "mariadb-linux".to_string(),
+            service_type: ServiceType::Mariadb,
+            package_kind: PackageKind::Binary,
+            version: "11.4.3".to_string(),
+            platform: "linux-x86_64".to_string(),
+            url: "https://example.com/mariadb.tar.gz".to_string(),
+            sha256: None,
+            size_bytes: None,
+            recommended: true,
+            description: None,
+            external_link: false,
+        };
+
+        let windows_pkg = PackageItem {
+            id: "mariadb-win".to_string(),
+            service_type: ServiceType::Mariadb,
+            package_kind: PackageKind::Binary,
+            version: "11.4.3".to_string(),
+            platform: "windows-x86_64".to_string(),
+            url: "https://example.com/mariadb.zip".to_string(),
+            sha256: None,
+            size_bytes: None,
+            recommended: false,
+            description: None,
+            external_link: false,
+        };
+
+        let any_pkg = PackageItem {
+            id: "source-code".to_string(),
+            service_type: ServiceType::Mariadb,
+            package_kind: PackageKind::Source,
+            version: "11.4.3".to_string(),
+            platform: "any".to_string(),
+            url: "https://example.com/source.tar.gz".to_string(),
+            sha256: None,
+            size_bytes: None,
+            recommended: false,
+            description: None,
+            external_link: false,
+        };
+
+        // All filter
+        assert!(linux_pkg.matches_os(OsFilter::All));
+        assert!(windows_pkg.matches_os(OsFilter::All));
+        assert!(any_pkg.matches_os(OsFilter::All));
+
+        // Linux filter
+        assert!(linux_pkg.matches_os(OsFilter::Linux));
+        assert!(!windows_pkg.matches_os(OsFilter::Linux));
+        assert!(any_pkg.matches_os(OsFilter::Linux));
+
+        // Windows filter
+        assert!(!linux_pkg.matches_os(OsFilter::Windows));
+        assert!(windows_pkg.matches_os(OsFilter::Windows));
+        assert!(any_pkg.matches_os(OsFilter::Windows));
+
+        // MacOs filter
+        assert!(!linux_pkg.matches_os(OsFilter::MacOs));
+        assert!(!windows_pkg.matches_os(OsFilter::MacOs));
+        assert!(any_pkg.matches_os(OsFilter::MacOs));
+    }
 }

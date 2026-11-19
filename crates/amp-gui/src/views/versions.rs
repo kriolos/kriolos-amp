@@ -1,6 +1,6 @@
 use crate::i18n::I18n;
 use amp_core::models::{
-    DownloadState, PackageItem, PackageKind, ServiceType, VersionManifest,
+    DownloadState, OsFilter, PackageItem, PackageKind, ServiceType, VersionManifest,
 };
 use egui::{Color32, ProgressBar, RichText, Ui};
 
@@ -12,6 +12,7 @@ pub fn render_versions(
     active_download: Option<&(String, String, DownloadState)>,
     selected_service_filter: &mut Option<ServiceType>,
     selected_kind_filter: &mut Option<PackageKind>,
+    selected_os_filter: &mut OsFilter,
     downloads_to_start: &mut Vec<PackageItem>,
     refresh_requested: &mut bool,
 ) {
@@ -132,6 +133,28 @@ pub fn render_versions(
         }
     });
 
+    ui.add_space(6.0);
+
+    // Filter Bar - Operating System
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(format!("{}:", i18n.t("os_label"))).strong());
+
+        let os_options = [
+            (OsFilter::All, i18n.t("filter_os_all")),
+            (OsFilter::Current, i18n.t("filter_os_current")),
+            (OsFilter::Linux, i18n.t("filter_os_linux")),
+            (OsFilter::Windows, i18n.t("filter_os_windows")),
+            (OsFilter::MacOs, i18n.t("filter_os_macos")),
+        ];
+
+        for (opt, label) in os_options {
+            let is_selected = *selected_os_filter == opt;
+            if ui.selectable_label(is_selected, label).clicked() {
+                *selected_os_filter = opt;
+            }
+        }
+    });
+
     ui.add_space(8.0);
     ui.separator();
     ui.add_space(8.0);
@@ -152,6 +175,10 @@ pub fn render_versions(
                     if pkg.package_kind != *kind_filter {
                         continue;
                     }
+                }
+
+                if !pkg.matches_os(*selected_os_filter) {
+                    continue;
                 }
 
                 shown_count += 1;
