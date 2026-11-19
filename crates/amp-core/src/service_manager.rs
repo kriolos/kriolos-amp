@@ -477,7 +477,12 @@ impl ServiceManager {
                 #[cfg(not(windows))]
                 { name_lower == "postgres" }
             }
-            ServiceType::Tool => false,
+            ServiceType::Tool => {
+                #[cfg(windows)]
+                { name_lower == "spc.exe" || name_lower.ends_with(".exe") }
+                #[cfg(not(windows))]
+                { name_lower == "spc" }
+            }
         }
     }
 

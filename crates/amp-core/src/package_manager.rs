@@ -151,6 +151,23 @@ impl PackageManager {
             Self::extract_tar_gz(&temp_file_path, &target_dir)?;
         } else if file_name.ends_with(".tar.xz") || file_name.ends_with(".txz") {
             Self::extract_tar_xz(&temp_file_path, &target_dir)?;
+        } else if file_name.ends_with(".exe") || !file_name.contains('.') {
+            // Direct executable binary
+            let out_name = item.binary_path.as_deref().unwrap_or(file_name);
+            let dest_file = target_dir.join(out_name);
+            if let Some(parent) = dest_file.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::copy(&temp_file_path, &dest_file)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Ok(meta) = fs::metadata(&dest_file) {
+                    let mut perms = meta.permissions();
+                    perms.set_mode(0o755);
+                    let _ = fs::set_permissions(&dest_file, perms);
+                }
+            }
         } else {
             return Err(PackageError::Archive(format!(
                 "Unsupported archive format: {}",
