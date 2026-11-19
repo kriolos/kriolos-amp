@@ -1,5 +1,5 @@
 {
-  "language": "pt-PT",
+  "language": "en-US",
   "theme": "dark",
   "root_www_dir": "www",
   "bin_dir": "bin",
@@ -23,8 +23,35 @@
       "host": "127.0.0.1",
       "port": 8000,
       "doc_root": "www",
-      "php_version": null,
+      "php_version": "8.3.13",
       "auto_start": false
     }
-  ]
+  ],
+  "services": {
+    "apache": {
+      "active_version": null,
+      "versions": {}
+    },
+    "mariadb": {
+      "active_version": null,
+      "versions": {}
+    },
+    "mysql": {
+      "active_version": null,
+      "versions": {}
+    },
+    "php": {
+      "active_version": "8.3.13",
+      "versions": {
+        "8.3.13": {
+          "binary_path": "bin/php/8.3.13/usr/bin/php8.3",
+          "source": "Downloaded"
+        }
+      }
+    },
+    "postgresql": {
+      "active_version": null,
+      "versions": {}
+    }
+  }
 }

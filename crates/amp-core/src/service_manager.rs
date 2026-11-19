@@ -5,7 +5,7 @@ use crate::models::{
 use crate::port_checker::PortChecker;
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
@@ -79,11 +79,18 @@ impl ServiceManager {
         versions
     }
 
-    pub fn get_service_info(&self, service: ServiceType) -> ServiceInfo {
+    pub fn get_service_info(
+        &self,
+        service: ServiceType,
+        configured_version: Option<&str>,
+        configured_source: Option<VersionSource>,
+    ) -> ServiceInfo {
         let port = *self.active_ports.get(&service).unwrap_or(&service.default_port());
         let local_versions = self.list_installed_versions(service);
 
-        let (active_version, version_source) = if let Some(first_local) = local_versions.first() {
+        let (active_version, version_source) = if let Some(ver) = configured_version {
+            (Some(ver.to_string()), configured_source.or(Some(VersionSource::Downloaded)))
+        } else if let Some(first_local) = local_versions.first() {
             (Some(first_local.clone()), Some(VersionSource::Downloaded))
         } else if let Some(sys_ver) = Self::detect_system_version(service) {
             (Some(sys_ver), Some(VersionSource::System))
@@ -165,6 +172,7 @@ impl ServiceManager {
         service: ServiceType,
         version: &str,
         port: u16,
+        custom_bin_path: Option<&str>,
     ) -> Result<(), ServiceError> {
         if self.active_processes.contains_key(&service) {
             return Ok(());
@@ -179,7 +187,7 @@ impl ServiceManager {
             return Err(err);
         }
 
-        let bin_path = match self.locate_binary(service, version) {
+        let bin_path = match self.locate_binary(service, version, custom_bin_path) {
             Ok(p) => p,
             Err(e) => {
                 self.service_errors.insert(service, e.clone());
@@ -254,6 +262,7 @@ impl ServiceManager {
         &mut self,
         instance: &PhpServerInstance,
         php_version: Option<&str>,
+        custom_bin_path: Option<&str>,
     ) -> Result<(), ServiceError> {
         if self.php_server_processes.contains_key(&instance.id) {
             return Ok(());
@@ -265,7 +274,7 @@ impl ServiceManager {
             return Err(err);
         }
 
-        let php_bin = match self.locate_php_cli(php_version) {
+        let php_bin = match self.locate_php_cli(php_version, custom_bin_path) {
             Ok(p) => p,
             Err(e) => {
                 self.add_log_event(LogEvent::Error(e.clone()));
@@ -339,16 +348,16 @@ impl ServiceManager {
         }
     }
 
-    fn locate_binary(&self, service: ServiceType, version: &str) -> Result<PathBuf, ServiceError> {
-        let dir = self
-            .base_bin_dir
-            .join(service.folder_name())
-            .join(version);
+    pub fn discover_binary_path(service: ServiceType, version_dir: &Path) -> Option<PathBuf> {
+        if !version_dir.exists() {
+            return None;
+        }
 
+        // 1. Check common candidates first
         #[cfg(windows)]
         let candidates = match service {
             ServiceType::Apache => vec!["bin/httpd.exe", "httpd.exe"],
-            ServiceType::Php => vec!["php.exe", "php-cgi.exe"],
+            ServiceType::Php => vec!["php.exe", "bin/php.exe", "php-cgi.exe"],
             ServiceType::Mysql => vec!["bin/mysqld.exe", "mysqld.exe"],
             ServiceType::Mariadb => vec!["bin/mariadbd.exe", "bin/mysqld.exe", "mariadbd.exe"],
             ServiceType::Postgresql => vec!["bin/postgres.exe", "postgres.exe"],
@@ -358,7 +367,7 @@ impl ServiceManager {
         #[cfg(not(windows))]
         let candidates = match service {
             ServiceType::Apache => vec!["bin/httpd", "bin/apache2", "httpd", "apache2"],
-            ServiceType::Php => vec!["bin/php", "sbin/php-fpm", "php", "php-fpm"],
+            ServiceType::Php => vec!["usr/bin/php8.3", "usr/bin/php8.2", "usr/bin/php8.1", "usr/bin/php8.0", "usr/bin/php", "bin/php", "php", "sbin/php-fpm", "php-fpm"],
             ServiceType::Mysql => vec!["bin/mysqld", "mysqld"],
             ServiceType::Mariadb => vec!["bin/mariadbd", "bin/mysqld", "mariadbd", "mysqld"],
             ServiceType::Postgresql => vec!["bin/postgres", "postgres"],
@@ -366,13 +375,133 @@ impl ServiceManager {
         };
 
         for candidate in candidates {
-            let path = dir.join(candidate);
-            if path.exists() {
-                return Ok(path);
+            let path = version_dir.join(candidate);
+            if path.is_file() {
+                Self::ensure_executable(&path);
+                return Some(path);
             }
         }
 
-        // On Linux fallback to system binaries
+        // 2. Recursive search up to depth 4
+        Self::find_executable_recursively(service, version_dir, 0, 4)
+    }
+
+    fn ensure_executable(_path: &Path) {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Ok(meta) = fs::metadata(_path) {
+                if meta.permissions().mode() & 0o111 == 0 {
+                    let mut perms = meta.permissions();
+                    perms.set_mode(perms.mode() | 0o755);
+                    let _ = fs::set_permissions(_path, perms);
+                }
+            }
+        }
+    }
+
+    fn find_executable_recursively(
+        service: ServiceType,
+        current_dir: &Path,
+        depth: usize,
+        max_depth: usize,
+    ) -> Option<PathBuf> {
+        if depth > max_depth {
+            return None;
+        }
+        let entries = fs::read_dir(current_dir).ok()?;
+        let mut subdirs = Vec::new();
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if name != "tests" && name != "test" && name != "docs" && name != "doc" && name != "ext" {
+                    subdirs.push(path);
+                }
+            } else if path.is_file() {
+                let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if Self::is_matching_binary(service, file_name) {
+                    Self::ensure_executable(&path);
+                    return Some(path);
+                }
+            }
+        }
+
+        for subdir in subdirs {
+            if let Some(found) = Self::find_executable_recursively(service, &subdir, depth + 1, max_depth) {
+                return Some(found);
+            }
+        }
+
+        None
+    }
+
+    fn is_matching_binary(service: ServiceType, name: &str) -> bool {
+        let name_lower = name.to_lowercase();
+        match service {
+            ServiceType::Php => {
+                #[cfg(windows)]
+                { name_lower == "php.exe" || name_lower == "php-cgi.exe" }
+                #[cfg(not(windows))]
+                {
+                    (name_lower == "php" || name_lower.starts_with("php8.") || name_lower.starts_with("php7."))
+                        && !name_lower.contains("config")
+                        && !name_lower.contains("ize")
+                        && !name_lower.ends_with(".phar")
+                        && !name_lower.ends_with(".h")
+                        && !name_lower.ends_with(".c")
+                }
+            }
+            ServiceType::Apache => {
+                #[cfg(windows)]
+                { name_lower == "httpd.exe" }
+                #[cfg(not(windows))]
+                { name_lower == "httpd" || name_lower == "apache2" }
+            }
+            ServiceType::Mariadb => {
+                #[cfg(windows)]
+                { name_lower == "mariadbd.exe" || name_lower == "mysqld.exe" }
+                #[cfg(not(windows))]
+                { name_lower == "mariadbd" || name_lower == "mysqld" }
+            }
+            ServiceType::Mysql => {
+                #[cfg(windows)]
+                { name_lower == "mysqld.exe" }
+                #[cfg(not(windows))]
+                { name_lower == "mysqld" }
+            }
+            ServiceType::Postgresql => {
+                #[cfg(windows)]
+                { name_lower == "postgres.exe" }
+                #[cfg(not(windows))]
+                { name_lower == "postgres" }
+            }
+            ServiceType::Tool => false,
+        }
+    }
+
+    pub fn locate_binary(&self, service: ServiceType, version: &str, custom_bin_path: Option<&str>) -> Result<PathBuf, ServiceError> {
+        // 1. Explicit path in config.json
+        if let Some(custom) = custom_bin_path {
+            let p = PathBuf::from(custom);
+            if p.is_file() {
+                Self::ensure_executable(&p);
+                return Ok(p);
+            }
+        }
+
+        let dir = self
+            .base_bin_dir
+            .join(service.folder_name())
+            .join(version);
+
+        // 2. Discover in downloaded folder
+        if let Some(p) = Self::discover_binary_path(service, &dir) {
+            return Ok(p);
+        }
+
+        // 3. Fallback to system binaries on Linux/macOS
         #[cfg(not(windows))]
         {
             let sys_binary = match service {
@@ -401,23 +530,25 @@ impl ServiceManager {
         })
     }
 
-    fn locate_php_cli(&self, version: Option<&str>) -> Result<PathBuf, ServiceError> {
-        if let Some(ver) = version {
-            let dir = self.base_bin_dir.join("php").join(ver);
-            #[cfg(windows)]
-            let candidates = ["php.exe"];
-            #[cfg(not(windows))]
-            let candidates = ["bin/php", "php"];
-
-            for c in candidates {
-                let p = dir.join(c);
-                if p.exists() {
-                    return Ok(p);
-                }
+    pub fn locate_php_cli(&self, version: Option<&str>, custom_bin_path: Option<&str>) -> Result<PathBuf, ServiceError> {
+        // 1. Explicit path in config.json
+        if let Some(custom) = custom_bin_path {
+            let p = PathBuf::from(custom);
+            if p.is_file() {
+                Self::ensure_executable(&p);
+                return Ok(p);
             }
         }
 
-        // Fallback to system php
+        // 2. Discover in version folder
+        if let Some(ver) = version {
+            let dir = self.base_bin_dir.join("php").join(ver);
+            if let Some(p) = Self::discover_binary_path(ServiceType::Php, &dir) {
+                return Ok(p);
+            }
+        }
+
+        // 3. Fallback to system php
         #[cfg(not(windows))]
         {
             if let Ok(output) = Command::new("which").arg("php").output() {
@@ -456,4 +587,29 @@ fn chrono_lite() -> String {
     let mins = (secs / 60) % 60;
     let s = secs % 60;
     format!("{:02}:{:02}:{:02}", hours, mins, s)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_discover_binary_path_with_temp_dir() {
+        let temp_dir = std::env::temp_dir().join("amp_test_php_discovery");
+        let nested_bin = temp_dir.join("usr").join("bin");
+        let _ = fs::create_dir_all(&nested_bin);
+
+        #[cfg(not(windows))]
+        let php_file = nested_bin.join("php8.3");
+        #[cfg(windows)]
+        let php_file = nested_bin.join("php.exe");
+
+        let _ = fs::write(&php_file, b"mock_executable");
+
+        let discovered = ServiceManager::discover_binary_path(ServiceType::Php, &temp_dir);
+        assert!(discovered.is_some());
+        assert_eq!(discovered.unwrap(), php_file);
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
 }

@@ -108,15 +108,92 @@ impl AmpApp {
     }
 
     fn refresh_installed_versions(&mut self) {
+        let services = [
+            ServiceType::Apache,
+            ServiceType::Php,
+            ServiceType::Mariadb,
+            ServiceType::Mysql,
+            ServiceType::Postgresql,
+        ];
+
+        let mut config_changed = false;
+        let mut installed = Vec::new();
+
         if let Ok(sm) = self.service_manager.lock() {
-            self.installed_versions = vec![
-                (ServiceType::Apache, sm.list_installed_versions(ServiceType::Apache)),
-                (ServiceType::Php, sm.list_installed_versions(ServiceType::Php)),
-                (ServiceType::Mariadb, sm.list_installed_versions(ServiceType::Mariadb)),
-                (ServiceType::Mysql, sm.list_installed_versions(ServiceType::Mysql)),
-                (ServiceType::Postgresql, sm.list_installed_versions(ServiceType::Postgresql)),
-            ];
+            for &st in &services {
+                let local_dirs = sm.list_installed_versions(st);
+                for ver in &local_dirs {
+                    let needs_register = match self.config.get_binary_path(st, ver) {
+                        Some(p) => !p.exists(),
+                        None => true,
+                    };
+                    if needs_register {
+                        let ver_dir = self.config.bin_dir.join(st.folder_name()).join(ver);
+                        if let Some(bin_path) = ServiceManager::discover_binary_path(st, &ver_dir) {
+                            self.config.register_version(
+                                st,
+                                ver.clone(),
+                                bin_path.to_string_lossy().to_string(),
+                                amp_core::models::VersionSource::Downloaded,
+                            );
+                            config_changed = true;
+                        }
+                    }
+                }
+
+                // Check system version
+                if let Some(sys_ver) = ServiceManager::detect_system_version(st) {
+                    let sys_key = format!("system ({})", sys_ver);
+                    if self.config.get_binary_path(st, &sys_key).is_none() {
+                        let sys_cmd = match st {
+                            ServiceType::Apache => "apache2",
+                            ServiceType::Php => "php",
+                            ServiceType::Mysql => "mysqld",
+                            ServiceType::Mariadb => "mariadbd",
+                            ServiceType::Postgresql => "postgres",
+                            ServiceType::Tool => "",
+                        };
+                        #[cfg(not(windows))]
+                        let path_opt = std::process::Command::new("which").arg(sys_cmd).output().ok().and_then(|out| {
+                            if out.status.success() {
+                                let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                                if !s.is_empty() { Some(s) } else { None }
+                            } else { None }
+                        });
+                        #[cfg(windows)]
+                        let path_opt = None;
+
+                        if let Some(path) = path_opt {
+                            self.config.register_version(
+                                st,
+                                sys_key,
+                                path,
+                                amp_core::models::VersionSource::System,
+                            );
+                            config_changed = true;
+                        }
+                    }
+                }
+
+                // Collect local dirs + registered versions from config
+                let mut all_versions = local_dirs;
+                if let Some(entry) = self.config.get_service_entry(st) {
+                    for v in entry.versions.keys() {
+                        if !all_versions.contains(v) {
+                            all_versions.push(v.clone());
+                        }
+                    }
+                }
+                all_versions.sort();
+                installed.push((st, all_versions));
+            }
         }
+
+        if config_changed {
+            let _ = self.config.save(&self.config_path);
+        }
+
+        self.installed_versions = installed;
     }
 
     fn start_package_download(&mut self, item: PackageItem) {
@@ -177,8 +254,10 @@ impl AmpApp {
         match action {
             ServiceAction::Start(st) => {
                 let port = ports.iter().find(|(t, _)| *t == st).map(|(_, p)| *p).unwrap_or(st.default_port());
+                let ver = self.config.get_active_version(st).unwrap_or("default");
+                let custom_bin = self.config.get_active_binary_path(st).map(|p| p.to_string_lossy().to_string());
                 if let Ok(mut sm) = self.service_manager.lock() {
-                    match sm.start_service(st, "default", port) {
+                    match sm.start_service(st, ver, port, custom_bin.as_deref()) {
                         Ok(()) => {
                             let msg = format!("{} :{}", st.display_name(), port);
                             self.status_bar_message = Some((msg, false));
@@ -199,9 +278,11 @@ impl AmpApp {
             }
             ServiceAction::Restart(st) => {
                 let port = ports.iter().find(|(t, _)| *t == st).map(|(_, p)| *p).unwrap_or(st.default_port());
+                let ver = self.config.get_active_version(st).unwrap_or("default");
+                let custom_bin = self.config.get_active_binary_path(st).map(|p| p.to_string_lossy().to_string());
                 if let Ok(mut sm) = self.service_manager.lock() {
                     let _ = sm.stop_service(st);
-                    match sm.start_service(st, "default", port) {
+                    match sm.start_service(st, ver, port, custom_bin.as_deref()) {
                         Ok(()) => {
                             let msg = format!("{} :{}", st.display_name(), port);
                             self.status_bar_message = Some((msg, false));
@@ -217,7 +298,9 @@ impl AmpApp {
                 let mut errors = Vec::new();
                 if let Ok(mut sm) = self.service_manager.lock() {
                     for (st, port) in ports {
-                        if let Err(err) = sm.start_service(st, "default", port) {
+                        let ver = self.config.get_active_version(st).unwrap_or("default");
+                        let custom_bin = self.config.get_active_binary_path(st).map(|p| p.to_string_lossy().to_string());
+                        if let Err(err) = sm.start_service(st, ver, port, custom_bin.as_deref()) {
                             errors.push(self.i18n.format_error(&err));
                         }
                     }
@@ -241,9 +324,14 @@ impl AmpApp {
         match action {
             PhpServerAction::Start(id) => {
                 if let Some(inst) = self.config.php_servers.iter().find(|s| s.id == id).cloned() {
-                    let php_ver = self.config.active_php_version.as_deref();
+                    let php_ver = inst.php_version.as_deref().or_else(|| self.config.get_active_version(ServiceType::Php));
+                    let custom_bin = if let Some(pv) = php_ver {
+                        self.config.get_binary_path(ServiceType::Php, pv).map(|p| p.to_string_lossy().to_string())
+                    } else {
+                        self.config.get_active_binary_path(ServiceType::Php).map(|p| p.to_string_lossy().to_string())
+                    };
                     if let Ok(mut sm) = self.service_manager.lock() {
-                        match sm.start_php_server(&inst, php_ver) {
+                        match sm.start_php_server(&inst, php_ver, custom_bin.as_deref()) {
                             Ok(()) => {
                                 self.status_bar_message = Some((
                                     format!("PHP '{}' :{}", inst.name, inst.port),
@@ -439,6 +527,7 @@ impl eframe::App for AmpApp {
         let mut php_actions = Vec::new();
         let mut downloads_to_start = Vec::new();
         let mut settings_actions = Vec::new();
+        let mut version_to_activate = None;
         let mut refresh_versions_requested = false;
 
         // Central Content Area
@@ -447,11 +536,19 @@ impl eframe::App for AmpApp {
             let mut logs = Vec::new();
 
             if let Ok(sm) = self.service_manager.lock() {
-                services_info.push(sm.get_service_info(ServiceType::Apache));
-                services_info.push(sm.get_service_info(ServiceType::Php));
-                services_info.push(sm.get_service_info(ServiceType::Mariadb));
-                services_info.push(sm.get_service_info(ServiceType::Mysql));
-                services_info.push(sm.get_service_info(ServiceType::Postgresql));
+                let all_types = [
+                    ServiceType::Apache,
+                    ServiceType::Php,
+                    ServiceType::Mariadb,
+                    ServiceType::Mysql,
+                    ServiceType::Postgresql,
+                ];
+                for st in all_types {
+                    let active_v = self.config.get_active_version(st);
+                    let source = self.config.get_service_entry(st)
+                        .and_then(|e| e.active_version.as_ref().and_then(|v| e.versions.get(v).map(|ve| ve.source)));
+                    services_info.push(sm.get_service_info(st, active_v, source));
+                }
                 logs = sm.get_recent_logs();
             }
 
@@ -486,6 +583,14 @@ impl eframe::App for AmpApp {
                     );
                 }
                 ActiveTab::Versions => {
+                    let active_versions = [
+                        (ServiceType::Apache, self.config.get_active_version(ServiceType::Apache).map(|s| s.to_string())),
+                        (ServiceType::Php, self.config.get_active_version(ServiceType::Php).map(|s| s.to_string())),
+                        (ServiceType::Mariadb, self.config.get_active_version(ServiceType::Mariadb).map(|s| s.to_string())),
+                        (ServiceType::Mysql, self.config.get_active_version(ServiceType::Mysql).map(|s| s.to_string())),
+                        (ServiceType::Postgresql, self.config.get_active_version(ServiceType::Postgresql).map(|s| s.to_string())),
+                    ];
+
                     render_versions(
                         ui,
                         &self.i18n,
@@ -495,6 +600,8 @@ impl eframe::App for AmpApp {
                         &mut self.selected_service_filter,
                         &mut self.selected_kind_filter,
                         &mut self.selected_os_filter,
+                        &active_versions,
+                        &mut version_to_activate,
                         &mut downloads_to_start,
                         &mut refresh_versions_requested,
                     );
@@ -531,6 +638,12 @@ impl eframe::App for AmpApp {
 
         for item in downloads_to_start {
             self.start_package_download(item);
+        }
+
+        if let Some((st, ver)) = version_to_activate {
+            self.config.set_active_version(st, Some(ver));
+            let _ = self.config.save(&self.config_path);
+            self.refresh_installed_versions();
         }
 
         for action in settings_actions {

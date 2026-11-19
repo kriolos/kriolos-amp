@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -148,6 +149,35 @@ impl Default for PhpServerInstance {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ServiceVersionEntry {
+    pub binary_path: String,
+    #[serde(default = "default_downloaded_source")]
+    pub source: VersionSource,
+}
+
+fn default_downloaded_source() -> VersionSource {
+    VersionSource::Downloaded
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct ServiceConfigEntry {
+    #[serde(default)]
+    pub active_version: Option<String>,
+    #[serde(default)]
+    pub versions: BTreeMap<String, ServiceVersionEntry>,
+}
+
+fn default_services_config() -> BTreeMap<String, ServiceConfigEntry> {
+    let mut map = BTreeMap::new();
+    map.insert("apache".to_string(), ServiceConfigEntry::default());
+    map.insert("php".to_string(), ServiceConfigEntry::default());
+    map.insert("mariadb".to_string(), ServiceConfigEntry::default());
+    map.insert("mysql".to_string(), ServiceConfigEntry::default());
+    map.insert("postgresql".to_string(), ServiceConfigEntry::default());
+    map
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub language: String,
@@ -168,6 +198,8 @@ pub struct AppConfig {
     pub active_postgresql_version: Option<String>,
     pub remote_manifest_url: String,
     pub php_servers: Vec<PhpServerInstance>,
+    #[serde(default = "default_services_config")]
+    pub services: BTreeMap<String, ServiceConfigEntry>,
 }
 
 impl Default for AppConfig {
@@ -191,11 +223,92 @@ impl Default for AppConfig {
             active_postgresql_version: None,
             remote_manifest_url: "https://raw.githubusercontent.com/antigravity-community/amp-control/main/assets/versions.json".to_string(),
             php_servers: vec![PhpServerInstance::default()],
+            services: default_services_config(),
         }
     }
 }
 
 impl AppConfig {
+    pub fn get_service_entry(&self, service: ServiceType) -> Option<&ServiceConfigEntry> {
+        self.services.get(service.folder_name())
+    }
+
+    pub fn get_service_entry_mut(&mut self, service: ServiceType) -> &mut ServiceConfigEntry {
+        self.services.entry(service.folder_name().to_string()).or_default()
+    }
+
+    pub fn get_active_version(&self, service: ServiceType) -> Option<&str> {
+        if let Some(entry) = self.services.get(service.folder_name()) {
+            if let Some(active) = &entry.active_version {
+                return Some(active.as_str());
+            }
+        }
+        match service {
+            ServiceType::Apache => self.active_apache_version.as_deref(),
+            ServiceType::Php => self.active_php_version.as_deref(),
+            ServiceType::Mysql => self.active_mysql_version.as_deref(),
+            ServiceType::Mariadb => self.active_mariadb_version.as_deref(),
+            ServiceType::Postgresql => self.active_postgresql_version.as_deref(),
+            ServiceType::Tool => None,
+        }
+    }
+
+    pub fn set_active_version(&mut self, service: ServiceType, version: Option<String>) {
+        let entry = self.get_service_entry_mut(service);
+        entry.active_version = version.clone();
+        match service {
+            ServiceType::Apache => self.active_apache_version = version,
+            ServiceType::Php => self.active_php_version = version,
+            ServiceType::Mysql => self.active_mysql_version = version,
+            ServiceType::Mariadb => self.active_mariadb_version = version,
+            ServiceType::Postgresql => self.active_postgresql_version = version,
+            ServiceType::Tool => {}
+        }
+    }
+
+    pub fn register_version(
+        &mut self,
+        service: ServiceType,
+        version: String,
+        binary_path: String,
+        source: VersionSource,
+    ) {
+        let entry = self.get_service_entry_mut(service);
+        let set_active = entry.active_version.is_none();
+        entry.versions.insert(
+            version.clone(),
+            ServiceVersionEntry {
+                binary_path,
+                source,
+            },
+        );
+        if set_active {
+            entry.active_version = Some(version.clone());
+            match service {
+                ServiceType::Apache => self.active_apache_version = Some(version),
+                ServiceType::Php => self.active_php_version = Some(version),
+                ServiceType::Mysql => self.active_mysql_version = Some(version),
+                ServiceType::Mariadb => self.active_mariadb_version = Some(version),
+                ServiceType::Postgresql => self.active_postgresql_version = Some(version),
+                ServiceType::Tool => {}
+            }
+        }
+    }
+
+    pub fn get_binary_path(&self, service: ServiceType, version: &str) -> Option<PathBuf> {
+        if let Some(entry) = self.services.get(service.folder_name()) {
+            if let Some(v_entry) = entry.versions.get(version) {
+                return Some(PathBuf::from(&v_entry.binary_path));
+            }
+        }
+        None
+    }
+
+    pub fn get_active_binary_path(&self, service: ServiceType) -> Option<PathBuf> {
+        let active_ver = self.get_active_version(service)?;
+        self.get_binary_path(service, active_ver)
+    }
+
     pub fn load_or_default(path: &Path) -> Self {
         if path.exists() {
             if let Ok(content) = fs::read_to_string(path) {
@@ -245,6 +358,8 @@ pub struct PackageItem {
     pub description: Option<String>,
     #[serde(default)]
     pub external_link: bool,
+    #[serde(default)]
+    pub binary_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -328,6 +443,7 @@ mod tests {
             recommended: true,
             description: None,
             external_link: false,
+            binary_path: None,
         };
 
         let windows_pkg = PackageItem {
@@ -342,6 +458,7 @@ mod tests {
             recommended: false,
             description: None,
             external_link: false,
+            binary_path: None,
         };
 
         let any_pkg = PackageItem {
@@ -356,6 +473,7 @@ mod tests {
             recommended: false,
             description: None,
             external_link: false,
+            binary_path: None,
         };
 
         // All filter
@@ -377,5 +495,44 @@ mod tests {
         assert!(!linux_pkg.matches_os(OsFilter::MacOs));
         assert!(!windows_pkg.matches_os(OsFilter::MacOs));
         assert!(any_pkg.matches_os(OsFilter::MacOs));
+    }
+
+    #[test]
+    fn test_app_config_service_version_management() {
+        let mut config = AppConfig::default();
+        assert_eq!(config.get_active_version(ServiceType::Php), None);
+
+        config.register_version(
+            ServiceType::Php,
+            "8.3.13".to_string(),
+            "bin/php/8.3.13/usr/bin/php8.3".to_string(),
+            VersionSource::Downloaded,
+        );
+
+        // First registered becomes active
+        assert_eq!(config.get_active_version(ServiceType::Php), Some("8.3.13"));
+        assert_eq!(
+            config.get_active_binary_path(ServiceType::Php),
+            Some(PathBuf::from("bin/php/8.3.13/usr/bin/php8.3"))
+        );
+
+        // Register second version
+        config.register_version(
+            ServiceType::Php,
+            "8.5.7".to_string(),
+            "bin/php/8.5.7/php".to_string(),
+            VersionSource::Downloaded,
+        );
+
+        // Active still 8.3.13 until explicitly switched
+        assert_eq!(config.get_active_version(ServiceType::Php), Some("8.3.13"));
+
+        // Switch to 8.5.7
+        config.set_active_version(ServiceType::Php, Some("8.5.7".to_string()));
+        assert_eq!(config.get_active_version(ServiceType::Php), Some("8.5.7"));
+        assert_eq!(
+            config.get_active_binary_path(ServiceType::Php),
+            Some(PathBuf::from("bin/php/8.5.7/php"))
+        );
     }
 }

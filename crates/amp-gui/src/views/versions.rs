@@ -13,6 +13,8 @@ pub fn render_versions(
     selected_service_filter: &mut Option<ServiceType>,
     selected_kind_filter: &mut Option<PackageKind>,
     selected_os_filter: &mut OsFilter,
+    active_versions: &[(ServiceType, Option<String>)],
+    version_to_activate: &mut Option<(ServiceType, String)>,
     downloads_to_start: &mut Vec<PackageItem>,
     refresh_requested: &mut bool,
 ) {
@@ -248,6 +250,24 @@ pub fn render_versions(
                                     {
                                         downloads_to_start.push(pkg.clone());
                                     }
+
+                                    let is_active = active_versions
+                                        .iter()
+                                        .find(|(st, _)| *st == pkg.service_type)
+                                        .and_then(|(_, opt)| opt.as_deref())
+                                        .map(|v| v == pkg.version)
+                                        .unwrap_or(false);
+
+                                    if is_active {
+                                        ui.label(
+                                            RichText::new(format!("★ {}", i18n.t("active_version")))
+                                                .color(Color32::from_rgb(234, 179, 8))
+                                                .strong(),
+                                        );
+                                    } else if ui.button(format!("⭐ {}", i18n.t("activate"))).clicked() {
+                                        *version_to_activate = Some((pkg.service_type, pkg.version.clone()));
+                                    }
+
                                     ui.label(
                                         RichText::new(format!("✓ {}", i18n.t("downloaded")))
                                             .color(Color32::from_rgb(34, 197, 94)),

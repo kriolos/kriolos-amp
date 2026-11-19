@@ -38,7 +38,8 @@
       "size_bytes": 95000000,
       "recommended": true,
       "description": "Binário oficial pré-compilado da MariaDB para Linux (glibc). Descompacta e executa de imediato.",
-      "external_link": false
+      "external_link": false,
+      "binary_path": "bin/mariadbd"
     },
     {
       "id": "MariaDB Server 11.4 (Win64 ZIP)",
@@ -51,7 +52,8 @@
       "size_bytes": 85000000,
       "recommended": true,
       "description": "MariaDB Server portátil oficial para Windows 64-bit.",
-      "external_link": false
+      "external_link": false,
+      "binary_path": "bin/mariadbd.exe"
     },
     {
       "id": "MariaDB Server 11.4 (Código-fonte)",
@@ -129,7 +131,8 @@
       "size_bytes": 32000000,
       "recommended": false,
       "description": "PHP 8.5 snapshot oficial para Windows x64 com suporte a Apache e CLI.",
-      "external_link": false
+      "external_link": false,
+      "binary_path": "php.exe"
     },
     {
       "id": "PHP 8.3 LTS (Win64 VS16)",
@@ -142,7 +145,8 @@
       "size_bytes": 31000000,
       "recommended": true,
       "description": "PHP 8.3 LTS Thread Safe oficial para Windows x64.",
-      "external_link": false
+      "external_link": false,
+      "binary_path": "php.exe"
     },
     {
       "id": "PHP 8.3 LTS (Binário Linux x64)",
@@ -155,7 +159,8 @@
       "size_bytes": 18000000,
       "recommended": true,
       "description": "Binário oficial pré-compilado do PHP 8.3 para Linux x64 (tar.xz).",
-      "external_link": false
+      "external_link": false,
+      "binary_path": "usr/bin/php8.3"
     },
     {
       "id": "PHP 8.3 LTS (Código-fonte)",
