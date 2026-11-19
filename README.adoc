@@ -10,6 +10,8 @@ A modern, lightweight, and cross-platform control panel for **AMP** development 
 
 Inspired by UwAmp, but reimagined from the ground up as a high-performance **native application** for **Linux**, **Windows**, and **macOS**, eliminating any dependency on Wine or legacy Windows-only APIs.
 
+image::docs/amp-control.gif[AMP Control Preview,align="center"]
+
 ---
 
 == 🌟 Key Features
