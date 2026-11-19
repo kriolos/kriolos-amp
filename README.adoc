@@ -58,6 +58,70 @@ image::docs/amp-control.gif[AMP Control Preview,align="center"]
 
 ---
 
+== 📦 Embedded & Self-Contained Edition (Architecture & Vision)
+
+A primary design goal is the ability to generate an optional **self-contained, zero-dependency distribution** where all core runtimes are embedded directly into the application:
+
+* **Static PHP Runtime**:
+  ** Built using https://static-php.dev/[Static PHP CLI (SPC)] or https://github.com/shivammathur/php-builder[PHP Builder] (supporting modern versions including PHP 8.3 and static PHP 8.5+).
+  ** Bundled with popular extensions pre-compiled (`sqlite3`, `pdo_sqlite`, `curl`, `mbstring`, `openssl`, etc.).
+  ** Powered by https://micro.static-php.dev/[Micro SAPI for PHP] and **MicroSFX**, serving as the glue between PHP code and the interpreter within a single binary or lightweight package.
+* **Autocontained Database Options**:
+  ** Embedded **SQLite** support with zero daemon overhead.
+  ** Optional bundled lightweight **MariaDB** / **MySQL** or in-process SQL engines.
+* **Key Advantages**:
+  ** **100% Portable**: Runs directly from any directory or USB stick without installer or registry clutter.
+  ** **Air-Gapped Ready**: Operates seamlessly without internet access once packaged.
+
+=== References & Tooling
+* https://static-php.dev/[Static PHP CLI (SPC)] - Single-command static PHP build tool.
+* https://micro.static-php.dev/[Micro SAPI] - Micro self-executable SAPI for PHP applications.
+* https://github.com/crazywhalecc/static-php-cli[SPC Releases] - Pre-built static CLI binaries across `linux-x86_64`, `linux-aarch64`, `macos-x86_64`, `macos-aarch64`, and `windows-x64`.
+* https://github.com/shivammathur/php-builder[PHP Builder] - Automated builds for portable PHP distributions.
+
+---
+
+== 🔄 Comparison with Alternatives
+
+[cols="2,2,2,3", options="header"]
+|===
+| Solution | Platforms | Tech Stack | Key Differences vs. AMP Control
+
+| **Laragon**
+| Windows only
+| Delphi / Pascal
+| Fast and popular on Windows, but lacks cross-platform Linux/macOS support.
+
+| **XAMPP / WAMP**
+| Windows, Linux, macOS
+| C / C++ / Qt / Web wrappers
+| Heavy resource footprint, traditional installer-centric design, and legacy desktop UI.
+
+| **EasyPHP / UwAmp**
+| Windows only
+| Delphi / Windows APIs
+| Legacy Windows stacks requiring Wine or emulation on non-Windows platforms.
+
+| **⚡ AMP Control**
+| **Linux, Windows, macOS**
+| **Rust + egui**
+| Native, cross-platform, minimal RAM footprint (<20MB), modular architecture with embedded/static PHP readiness.
+|===
+
+---
+
+== 🗺️ Extended Feature Roadmap
+
+* [ ] **Local SSL / HTTPS Automation**: One-click local root CA and trusted certificate generation via https://github.com/FiloSottile/mkcert[mkcert].
+* [ ] **Automated Virtual Hosts & `.test` Domains**: Seamless local `.test` hostname mapping with hosts file management.
+* [ ] **Concurrent Multi-PHP Support**: Run multiple distinct PHP versions across independent projects simultaneously via dedicated `php -S` instances.
+* [ ] **Mail Catcher (Mailpit / Mailhog Integration)**: Built-in local SMTP mock server to intercept and preview outgoing PHP emails.
+* [ ] **Smart Port Conflict Diagnostic**: Automatic detection of blocking processes (PID and name) with single-click resolution.
+* [ ] **Live System Metrics**: Real-time CPU and memory telemetry for running services powered by `egui_plot`.
+* [ ] **Stack Portability Profiles**: Export and import project environments via portable `amp-stack.json` manifests.
+
+---
+
 == 🏗️ Project Architecture
 
 [source,text]
