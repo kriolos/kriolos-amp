@@ -4,6 +4,7 @@
   "root_www_dir": "www",
   "bin_dir": "bin",
   "logs_dir": "logs",
+  "default_host": "127.0.0.1",
   "apache_port": 8080,
   "apache_ssl_port": 8443,
   "php_fpm_port": 9000,
@@ -11,11 +12,11 @@
   "mariadb_port": 3307,
   "postgresql_port": 5432,
   "active_apache_version": null,
-  "active_php_version": null,
+  "active_php_version": "8.3.11-static",
   "active_mysql_version": null,
   "active_mariadb_version": null,
   "active_postgresql_version": null,
-  "remote_manifest_url": "https://raw.githubusercontent.com/antigravity-community/amp-control/main/assets/versions.json",
+  "remote_manifest_url": "https://raw.githubusercontent.com/kriolos/kriolos-amp/main/assets/versions.json",
   "php_servers": [
     {
       "id": "default-php-server",
@@ -41,8 +42,12 @@
       "versions": {}
     },
     "php": {
-      "active_version": "8.3.13",
+      "active_version": "8.3.11-static",
       "versions": {
+        "8.3.11-static": {
+          "binary_path": "bin/php/8.3.11-static/php",
+          "source": "Downloaded"
+        },
         "8.3.13": {
           "binary_path": "bin/php/8.3.13/usr/bin/php8.3",
           "source": "Downloaded"

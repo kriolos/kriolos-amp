@@ -141,7 +141,7 @@ pub mod defaults {
     pub const DEFAULT_LANGUAGE: &str = "pt-PT";
     pub const DEFAULT_THEME: &str = "dark";
     pub const DEFAULT_MANIFEST_URL: &str =
-        "https://raw.githubusercontent.com/antigravity-community/amp-control/main/assets/versions.json";
+        "https://raw.githubusercontent.com/kriolos/kriolos-amp/main/assets/versions.json";
 }
 
 pub fn default_host() -> String {

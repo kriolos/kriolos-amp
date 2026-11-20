@@ -6,6 +6,10 @@
 :source-highlighter: highlight.js
 :experimental:
 
+https://github.com/kriolos/kriolos-amp[image:https://img.shields.io/badge/GitHub-kriolos%2Fkriolos--amp-blue?logo=github[Official Repository]]
+image:https://img.shields.io/badge/license-MIT%20%7C%20Apache--2.0-green[License]
+image:https://img.shields.io/badge/rust-2021%20edition-orange?logo=rust[Rust Edition]
+
 A modern, lightweight, and cross-platform control panel for **AMP** development environments (**Apache** + **MariaDB / MySQL / PostgreSQL** + **PHP**), written in **Rust** using **egui** (`eframe`).
 
 Inspired by UwAmp, but reimagined from the ground up as a high-performance **native application** for **Linux**, **Windows**, and **macOS**, eliminating any dependency on Wine or legacy Windows-only APIs.
