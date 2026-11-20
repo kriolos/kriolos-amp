@@ -87,9 +87,24 @@ pub fn render_settings(
         ui.separator();
         ui.add_space(10.0);
 
-        // --- 2. Port Configuration ---
+        // --- 2. Network & Port Configuration ---
         ui.heading(RichText::new(i18n.t("ports_config")).size(16.0));
         ui.add_space(6.0);
+
+        ui.horizontal(|ui| {
+            ui.label(format!("{}:", i18n.t("default_host")));
+            ui.add(
+                egui::TextEdit::singleline(&mut config.default_host)
+                    .desired_width(160.0)
+                    .hint_text(amp_core::models::defaults::DEFAULT_HOST),
+            );
+            ui.label(
+                RichText::new("(ex: 127.0.0.1, localhost, 0.0.0.0)")
+                    .color(Color32::from_rgb(148, 163, 184))
+                    .size(11.0),
+            );
+        });
+        ui.add_space(8.0);
 
         egui::Grid::new("ports_settings_grid")
             .num_columns(4)

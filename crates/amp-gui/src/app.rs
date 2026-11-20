@@ -45,6 +45,7 @@ pub struct AmpApp {
     selected_kind_filter: Option<PackageKind>,
     selected_os_filter: OsFilter,
     new_php_server_name: String,
+    new_php_server_host: String,
     new_php_server_port: u16,
     new_php_server_root: String,
     tokio_handle: tokio::runtime::Handle,
@@ -98,8 +99,9 @@ impl AmpApp {
             selected_kind_filter: None,
             selected_os_filter: OsFilter::All,
             new_php_server_name: String::new(),
-            new_php_server_port: 8000,
-            new_php_server_root: "www".to_string(),
+            new_php_server_host: String::new(),
+            new_php_server_port: amp_core::models::defaults::DEFAULT_PHP_SERVER_PORT,
+            new_php_server_root: amp_core::models::defaults::DEFAULT_DOC_ROOT.to_string(),
             tokio_handle,
         };
 
@@ -587,8 +589,10 @@ impl eframe::App for AmpApp {
                         is_running_checker,
                         &mut php_actions,
                         &mut self.new_php_server_name,
+                        &mut self.new_php_server_host,
                         &mut self.new_php_server_port,
                         &mut self.new_php_server_root,
+                        &self.config.default_host,
                     );
                 }
                 ActiveTab::Versions => {
