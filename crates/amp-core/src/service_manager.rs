@@ -844,7 +844,7 @@ mod tests {
         let instance = PhpServerInstance {
             id: "test-instance".to_string(),
             name: "Test Server".to_string(),
-            host: "127.0.0.1".to_string(),
+            host: crate::models::defaults::DEFAULT_HOST.to_string(),
             port: 19876,
             doc_root: ".".to_string(),
             php_version: None,
@@ -890,7 +890,7 @@ mod tests {
         let instance = PhpServerInstance {
             id: "test-poll-instance".to_string(),
             name: "Test Poll Server".to_string(),
-            host: "127.0.0.1".to_string(),
+            host: crate::models::defaults::DEFAULT_HOST.to_string(),
             port: 19877,
             doc_root: ".".to_string(),
             php_version: None,

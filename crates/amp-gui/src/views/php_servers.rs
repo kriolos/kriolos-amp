@@ -18,8 +18,10 @@ pub fn render_php_servers(
     is_running_checker: impl Fn(&str) -> bool,
     actions: &mut Vec<PhpServerAction>,
     new_server_name: &mut String,
+    new_server_host: &mut String,
     new_server_port: &mut u16,
     new_server_root: &mut String,
+    default_host: &str,
 ) {
     ui.add_space(8.0);
     ui.horizontal(|ui| {
@@ -66,14 +68,31 @@ pub fn render_php_servers(
                 ui.label(format!("{}:", i18n.t("server_name")));
                 ui.add(egui::TextEdit::singleline(new_server_name).hint_text("ex.: Site 2 / API"));
 
+                ui.label(format!("{}:", i18n.t("host")));
+                ui.add(
+                    egui::TextEdit::singleline(new_server_host)
+                        .desired_width(100.0)
+                        .hint_text(default_host),
+                );
+
                 ui.label(format!("{}:", i18n.t("port")));
                 ui.add(egui::DragValue::new(new_server_port).range(1024..=65535));
 
                 ui.label(format!("{}:", i18n.t("doc_root")));
-                ui.add(egui::TextEdit::singleline(new_server_root).hint_text("ex.: www/api"));
+                ui.add(egui::TextEdit::singleline(new_server_root).hint_text(amp_core::models::defaults::DEFAULT_DOC_ROOT));
 
                 if ui.button(i18n.t("create_instance")).clicked() {
                     let id = format!("php-inst-{}", new_server_port);
+                    let host_val = if new_server_host.trim().is_empty() {
+                        default_host.to_string()
+                    } else {
+                        new_server_host.trim().to_string()
+                    };
+                    let doc_root_val = if new_server_root.trim().is_empty() {
+                        amp_core::models::defaults::DEFAULT_DOC_ROOT.to_string()
+                    } else {
+                        new_server_root.trim().to_string()
+                    };
                     let instance = PhpServerInstance {
                         id,
                         name: if new_server_name.is_empty() {
@@ -81,13 +100,9 @@ pub fn render_php_servers(
                         } else {
                             new_server_name.clone()
                         },
-                        host: "127.0.0.1".to_string(),
+                        host: host_val,
                         port: *new_server_port,
-                        doc_root: if new_server_root.is_empty() {
-                            "www".to_string()
-                        } else {
-                            new_server_root.clone()
-                        },
+                        doc_root: doc_root_val,
                         php_version: None,
                         auto_start: false,
                     };

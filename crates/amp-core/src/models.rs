@@ -126,10 +126,81 @@ pub struct ServiceInfo {
     pub installed_versions: Vec<String>,
 }
 
+pub mod defaults {
+    pub const DEFAULT_HOST: &str = "127.0.0.1";
+    pub const DEFAULT_DOC_ROOT: &str = "www";
+    pub const DEFAULT_BIN_DIR: &str = "bin";
+    pub const DEFAULT_LOGS_DIR: &str = "logs";
+    pub const DEFAULT_APACHE_PORT: u16 = 8080;
+    pub const DEFAULT_APACHE_SSL_PORT: u16 = 8443;
+    pub const DEFAULT_PHP_FPM_PORT: u16 = 9000;
+    pub const DEFAULT_MYSQL_PORT: u16 = 3306;
+    pub const DEFAULT_MARIADB_PORT: u16 = 3307;
+    pub const DEFAULT_POSTGRESQL_PORT: u16 = 5432;
+    pub const DEFAULT_PHP_SERVER_PORT: u16 = 8000;
+    pub const DEFAULT_LANGUAGE: &str = "pt-PT";
+    pub const DEFAULT_THEME: &str = "dark";
+    pub const DEFAULT_MANIFEST_URL: &str =
+        "https://raw.githubusercontent.com/antigravity-community/amp-control/main/assets/versions.json";
+}
+
+pub fn default_host() -> String {
+    defaults::DEFAULT_HOST.to_string()
+}
+
+fn default_language() -> String {
+    defaults::DEFAULT_LANGUAGE.to_string()
+}
+
+fn default_theme() -> String {
+    defaults::DEFAULT_THEME.to_string()
+}
+
+fn default_root_www_dir() -> PathBuf {
+    PathBuf::from(defaults::DEFAULT_DOC_ROOT)
+}
+
+fn default_bin_dir() -> PathBuf {
+    PathBuf::from(defaults::DEFAULT_BIN_DIR)
+}
+
+fn default_logs_dir() -> PathBuf {
+    PathBuf::from(defaults::DEFAULT_LOGS_DIR)
+}
+
+fn default_apache_port() -> u16 {
+    defaults::DEFAULT_APACHE_PORT
+}
+
+fn default_apache_ssl_port() -> u16 {
+    defaults::DEFAULT_APACHE_SSL_PORT
+}
+
+fn default_php_fpm_port() -> u16 {
+    defaults::DEFAULT_PHP_FPM_PORT
+}
+
+fn default_mysql_port() -> u16 {
+    defaults::DEFAULT_MYSQL_PORT
+}
+
+fn default_mariadb_port() -> u16 {
+    defaults::DEFAULT_MARIADB_PORT
+}
+
+fn default_postgresql_port() -> u16 {
+    defaults::DEFAULT_POSTGRESQL_PORT
+}
+
+fn default_manifest_url() -> String {
+    defaults::DEFAULT_MANIFEST_URL.to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhpServerInstance {
     pub id: String,
     pub name: String,
+    #[serde(default = "default_host")]
     pub host: String,
     pub port: u16,
     pub doc_root: String,
@@ -142,9 +213,9 @@ impl Default for PhpServerInstance {
         Self {
             id: "default-php-server".to_string(),
             name: "Default PHP Server".to_string(),
-            host: "127.0.0.1".to_string(),
-            port: 8000,
-            doc_root: "www".to_string(),
+            host: defaults::DEFAULT_HOST.to_string(),
+            port: defaults::DEFAULT_PHP_SERVER_PORT,
+            doc_root: defaults::DEFAULT_DOC_ROOT.to_string(),
             php_version: None,
             auto_start: false,
         }
@@ -182,23 +253,38 @@ fn default_services_config() -> BTreeMap<String, ServiceConfigEntry> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
+    #[serde(default = "default_language")]
     pub language: String,
+    #[serde(default = "default_theme")]
     pub theme: String, // "dark", "light", "system"
+    #[serde(default = "default_root_www_dir")]
     pub root_www_dir: PathBuf,
+    #[serde(default = "default_bin_dir")]
     pub bin_dir: PathBuf,
+    #[serde(default = "default_logs_dir")]
     pub logs_dir: PathBuf,
+    #[serde(default = "default_host")]
+    pub default_host: String,
+    #[serde(default = "default_apache_port")]
     pub apache_port: u16,
+    #[serde(default = "default_apache_ssl_port")]
     pub apache_ssl_port: u16,
+    #[serde(default = "default_php_fpm_port")]
     pub php_fpm_port: u16,
+    #[serde(default = "default_mysql_port")]
     pub mysql_port: u16,
+    #[serde(default = "default_mariadb_port")]
     pub mariadb_port: u16,
+    #[serde(default = "default_postgresql_port")]
     pub postgresql_port: u16,
     pub active_apache_version: Option<String>,
     pub active_php_version: Option<String>,
     pub active_mysql_version: Option<String>,
     pub active_mariadb_version: Option<String>,
     pub active_postgresql_version: Option<String>,
+    #[serde(default = "default_manifest_url")]
     pub remote_manifest_url: String,
+    #[serde(default)]
     pub php_servers: Vec<PhpServerInstance>,
     #[serde(default = "default_services_config")]
     pub services: BTreeMap<String, ServiceConfigEntry>,
@@ -207,23 +293,24 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            language: "pt-PT".to_string(),
-            theme: "dark".to_string(),
-            root_www_dir: PathBuf::from("www"),
-            bin_dir: PathBuf::from("bin"),
-            logs_dir: PathBuf::from("logs"),
-            apache_port: 8080,
-            apache_ssl_port: 8443,
-            php_fpm_port: 9000,
-            mysql_port: 3306,
-            mariadb_port: 3307,
-            postgresql_port: 5432,
+            language: defaults::DEFAULT_LANGUAGE.to_string(),
+            theme: defaults::DEFAULT_THEME.to_string(),
+            root_www_dir: PathBuf::from(defaults::DEFAULT_DOC_ROOT),
+            bin_dir: PathBuf::from(defaults::DEFAULT_BIN_DIR),
+            logs_dir: PathBuf::from(defaults::DEFAULT_LOGS_DIR),
+            default_host: defaults::DEFAULT_HOST.to_string(),
+            apache_port: defaults::DEFAULT_APACHE_PORT,
+            apache_ssl_port: defaults::DEFAULT_APACHE_SSL_PORT,
+            php_fpm_port: defaults::DEFAULT_PHP_FPM_PORT,
+            mysql_port: defaults::DEFAULT_MYSQL_PORT,
+            mariadb_port: defaults::DEFAULT_MARIADB_PORT,
+            postgresql_port: defaults::DEFAULT_POSTGRESQL_PORT,
             active_apache_version: None,
             active_php_version: None,
             active_mysql_version: None,
             active_mariadb_version: None,
             active_postgresql_version: None,
-            remote_manifest_url: "https://raw.githubusercontent.com/antigravity-community/amp-control/main/assets/versions.json".to_string(),
+            remote_manifest_url: defaults::DEFAULT_MANIFEST_URL.to_string(),
             php_servers: vec![PhpServerInstance::default()],
             services: default_services_config(),
         }
@@ -563,5 +650,23 @@ mod tests {
         assert!(linux_pkg.recommended, "Static PHP should be recommended for linux");
         assert_eq!(linux_pkg.binary_path.as_deref(), Some("php"));
         assert!(linux_pkg.url.contains("static-php-cli"));
+    }
+
+    #[test]
+    fn test_app_config_defaults_and_custom_host() {
+        // Test default instance
+        let default_config = AppConfig::default();
+        assert_eq!(default_config.default_host, defaults::DEFAULT_HOST);
+        assert_eq!(default_config.root_www_dir, PathBuf::from(defaults::DEFAULT_DOC_ROOT));
+
+        // Test backward-compatibility deserialization (empty JSON object)
+        let parsed: AppConfig = serde_json::from_str("{}").expect("empty json should deserialize with defaults");
+        assert_eq!(parsed.default_host, defaults::DEFAULT_HOST);
+        assert_eq!(parsed.apache_port, defaults::DEFAULT_APACHE_PORT);
+
+        // Test custom host serialization/deserialization
+        let custom_json = r#"{"default_host": "0.0.0.0"}"#;
+        let custom_parsed: AppConfig = serde_json::from_str(custom_json).expect("custom json should deserialize");
+        assert_eq!(custom_parsed.default_host, "0.0.0.0");
     }
 }

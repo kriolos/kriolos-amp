@@ -120,7 +120,8 @@ impl I18n {
         pt.insert("root_dir", "Diretório Raiz dos Projetos (www)");
         pt.insert("bin_dir", "Diretório de Binários (bin)");
         pt.insert("logs_dir", "Diretório de Logs (logs)");
-        pt.insert("ports_config", "Configuração de Portas de Monitorização");
+        pt.insert("default_host", "Host / IP Padrão");
+        pt.insert("ports_config", "Configuração de Rede e Portas");
         pt.insert("remote_manifest_url", "URL do Catálogo Remoto (JSON)");
         pt.insert("remote_manifest_info", "💡 O catálogo remoto permite carregar novas versões de PHP, Apache e Bancos sem precisar recompilar ou atualizar o programa.");
         pt.insert("browse", "Procurar...");
@@ -250,7 +251,8 @@ impl I18n {
         en.insert("root_dir", "Root Web Directory (www)");
         en.insert("bin_dir", "Binaries Directory (bin)");
         en.insert("logs_dir", "Logs Directory (logs)");
-        en.insert("ports_config", "Monitored Ports Configuration");
+        en.insert("default_host", "Default Host / IP");
+        en.insert("ports_config", "Network & Ports Configuration");
         en.insert("remote_manifest_url", "Remote Manifest URL (JSON)");
         en.insert("remote_manifest_info", "💡 The remote catalog lets you load new PHP, Apache, and Database versions without recompiling the app.");
         en.insert("browse", "Browse...");
