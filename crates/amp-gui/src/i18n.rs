@@ -425,6 +425,12 @@ impl I18n {
                 };
                 ("DOWNLOAD".to_string(), msg, false)
             }
+            LogEvent::CommandExecuted { command } => {
+                ("EXEC".to_string(), command.clone(), false)
+            }
+            LogEvent::ProcessOutput { source, line, is_stderr } => {
+                (source.clone(), line.clone(), *is_stderr)
+            }
         }
     }
 

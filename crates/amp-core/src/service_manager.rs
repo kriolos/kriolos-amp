@@ -198,6 +198,16 @@ impl ServiceManager {
 
         self.add_log_event(LogEvent::Starting { service, port });
 
+        let cmd_str = match service {
+            ServiceType::Apache => format!("{} -D FOREGROUND", bin_path.display()),
+            ServiceType::Mysql | ServiceType::Mariadb => format!("{} --port={}", bin_path.display(), port),
+            ServiceType::Postgresql => format!("{} -p {}", bin_path.display(), port),
+            _ => format!("{}", bin_path.display()),
+        };
+        self.add_log_event(LogEvent::CommandExecuted {
+            command: cmd_str,
+        });
+
         let mut cmd = Command::new(&bin_path);
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -218,13 +228,61 @@ impl ServiceManager {
         }
 
         match cmd.spawn() {
-            Ok(child) => {
-                let pid = child.id();
-                self.active_processes.insert(service, child);
-                self.active_ports.insert(service, port);
-                self.service_errors.remove(&service);
-                self.add_log_event(LogEvent::Started { service, pid, port });
-                Ok(())
+            Ok(mut child) => {
+                let service_name = service.folder_name().to_uppercase();
+                if let Some(stdout) = child.stdout.take() {
+                    spawn_output_forwarder(
+                        stdout,
+                        service_name.clone(),
+                        false,
+                        self.log_sender.clone(),
+                        self.recent_logs.clone(),
+                    );
+                }
+                if let Some(stderr) = child.stderr.take() {
+                    spawn_output_forwarder(
+                        stderr,
+                        service_name,
+                        true,
+                        self.log_sender.clone(),
+                        self.recent_logs.clone(),
+                    );
+                }
+
+                // Check for immediate crash (e.g. missing dynamic libraries, bad arguments)
+                std::thread::sleep(std::time::Duration::from_millis(80));
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        let code_str = status
+                            .code()
+                            .map(|c| c.to_string())
+                            .unwrap_or_else(|| "terminated by signal".to_string());
+                        let err = ServiceError::ExecutionFailed {
+                            service,
+                            details: format!("Process exited immediately (exit code: {})", code_str),
+                        };
+                        self.service_errors.insert(service, err.clone());
+                        self.add_log_event(LogEvent::Error(err.clone()));
+                        Err(err)
+                    }
+                    Ok(None) => {
+                        let pid = child.id();
+                        self.active_processes.insert(service, child);
+                        self.active_ports.insert(service, port);
+                        self.service_errors.remove(&service);
+                        self.add_log_event(LogEvent::Started { service, pid, port });
+                        Ok(())
+                    }
+                    Err(e) => {
+                        let err = ServiceError::ExecutionFailed {
+                            service,
+                            details: format!("Failed to verify process status: {}", e),
+                        };
+                        self.service_errors.insert(service, err.clone());
+                        self.add_log_event(LogEvent::Error(err.clone()));
+                        Err(err)
+                    }
+                }
             }
             Err(e) => {
                 let err = ServiceError::ExecutionFailed {
@@ -254,8 +312,18 @@ impl ServiceManager {
 
     // --- PHP Embedded Web Server (php -S) Management ---
 
-    pub fn is_php_server_running(&self, instance_id: &str) -> bool {
-        self.php_server_processes.contains_key(instance_id)
+    pub fn is_php_server_running(&mut self, instance_id: &str) -> bool {
+        if let Some((child, _)) = self.php_server_processes.get_mut(instance_id) {
+            match child.try_wait() {
+                Ok(None) => true,
+                _ => {
+                    self.php_server_processes.remove(instance_id);
+                    false
+                }
+            }
+        } else {
+            false
+        }
     }
 
     pub fn start_php_server(
@@ -291,22 +359,78 @@ impl ServiceManager {
             doc_root: instance.doc_root.clone(),
         });
 
+        let cmd_str = format!(
+            "{} -S {} -t {}",
+            php_bin.display(),
+            bind_addr,
+            instance.doc_root
+        );
+        self.add_log_event(LogEvent::CommandExecuted {
+            command: cmd_str,
+        });
+
         let mut cmd = Command::new(&php_bin);
         cmd.args(["-S", &bind_addr, "-t", &instance.doc_root]);
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         match cmd.spawn() {
-            Ok(child) => {
-                let pid = child.id();
-                self.php_server_processes
-                    .insert(instance.id.clone(), (child, instance.port));
-                self.add_log_event(LogEvent::PhpServerStarted {
-                    name: instance.name.clone(),
-                    host: instance.host.clone(),
-                    port: instance.port,
-                    pid,
-                });
-                Ok(())
+            Ok(mut child) => {
+                let src_name = format!("PHP:{}", instance.name);
+                if let Some(stdout) = child.stdout.take() {
+                    spawn_output_forwarder(
+                        stdout,
+                        src_name.clone(),
+                        false,
+                        self.log_sender.clone(),
+                        self.recent_logs.clone(),
+                    );
+                }
+                if let Some(stderr) = child.stderr.take() {
+                    spawn_output_forwarder(
+                        stderr,
+                        src_name,
+                        true,
+                        self.log_sender.clone(),
+                        self.recent_logs.clone(),
+                    );
+                }
+
+                // Check for immediate crash (e.g. missing dynamic libraries, port binding failure)
+                std::thread::sleep(std::time::Duration::from_millis(80));
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        let code_str = status
+                            .code()
+                            .map(|c| c.to_string())
+                            .unwrap_or_else(|| "terminated by signal".to_string());
+                        let err = ServiceError::PhpServerFailed {
+                            name: instance.name.clone(),
+                            details: format!("Process exited immediately (exit code: {})", code_str),
+                        };
+                        self.add_log_event(LogEvent::Error(err.clone()));
+                        Err(err)
+                    }
+                    Ok(None) => {
+                        let pid = child.id();
+                        self.php_server_processes
+                            .insert(instance.id.clone(), (child, instance.port));
+                        self.add_log_event(LogEvent::PhpServerStarted {
+                            name: instance.name.clone(),
+                            host: instance.host.clone(),
+                            port: instance.port,
+                            pid,
+                        });
+                        Ok(())
+                    }
+                    Err(e) => {
+                        let err = ServiceError::PhpServerFailed {
+                            name: instance.name.clone(),
+                            details: format!("Failed to verify process status: {}", e),
+                        };
+                        self.add_log_event(LogEvent::Error(err.clone()));
+                        Err(err)
+                    }
+                }
             }
             Err(e) => {
                 let err = ServiceError::PhpServerFailed {
@@ -316,6 +440,58 @@ impl ServiceManager {
                 self.add_log_event(LogEvent::Error(err.clone()));
                 Err(err)
             }
+        }
+    }
+
+    pub fn poll_active_processes(&mut self) {
+        // 1. Poll standard services
+        let mut dead_services = Vec::new();
+        for (&service, child) in self.active_processes.iter_mut() {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    dead_services.push((service, status));
+                }
+                Ok(None) => {}
+                Err(_) => {}
+            }
+        }
+        for (service, status) in dead_services {
+            self.active_processes.remove(&service);
+            self.active_ports.remove(&service);
+            let code_str = status
+                .code()
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| "terminated by signal".to_string());
+            let err = ServiceError::ExecutionFailed {
+                service,
+                details: format!("Process terminated unexpectedly (exit code: {})", code_str),
+            };
+            self.service_errors.insert(service, err.clone());
+            self.add_log_event(LogEvent::Error(err));
+        }
+
+        // 2. Poll PHP embedded web servers
+        let mut dead_php_servers = Vec::new();
+        for (id, (child, _port)) in self.php_server_processes.iter_mut() {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    dead_php_servers.push((id.clone(), status));
+                }
+                Ok(None) => {}
+                Err(_) => {}
+            }
+        }
+        for (id, status) in dead_php_servers {
+            self.php_server_processes.remove(&id);
+            let code_str = status
+                .code()
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| "terminated by signal".to_string());
+            let err = ServiceError::PhpServerFailed {
+                name: id.clone(),
+                details: format!("Server process terminated unexpectedly (exit code: {})", code_str),
+            };
+            self.add_log_event(LogEvent::Error(err));
         }
     }
 
@@ -582,6 +758,37 @@ impl ServiceManager {
     }
 }
 
+fn spawn_output_forwarder<R: std::io::Read + Send + 'static>(
+    reader: R,
+    source: String,
+    is_stderr: bool,
+    log_sender: broadcast::Sender<LogMessage>,
+    recent_logs: Arc<Mutex<Vec<LogMessage>>>,
+) {
+    std::thread::spawn(move || {
+        use std::io::BufRead;
+        let buf_reader = std::io::BufReader::new(reader);
+        for line in buf_reader.lines().flatten() {
+            let now = chrono_lite();
+            let log_entry = LogMessage {
+                timestamp: now,
+                event: LogEvent::ProcessOutput {
+                    source: source.clone(),
+                    line,
+                    is_stderr,
+                },
+            };
+            let _ = log_sender.send(log_entry.clone());
+            if let Ok(mut logs) = recent_logs.lock() {
+                logs.push(log_entry);
+                if logs.len() > 1000 {
+                    logs.remove(0);
+                }
+            }
+        }
+    });
+}
+
 fn chrono_lite() -> String {
     let now = std::time::SystemTime::now();
     let duration = now
@@ -614,6 +821,98 @@ mod tests {
         let discovered = ServiceManager::discover_binary_path(ServiceType::Php, &temp_dir);
         assert!(discovered.is_some());
         assert_eq!(discovered.unwrap(), php_file);
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_php_server_immediate_exit_detected() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp_dir = std::env::temp_dir().join("amp_test_php_immediate_exit");
+        let _ = fs::create_dir_all(&temp_dir);
+        let mock_php = temp_dir.join("php");
+
+        // A mock script that writes to stderr and exits with 127
+        let script = "#!/bin/sh\necho 'error: missing libxyz.so' >&2\nexit 127\n";
+        fs::write(&mock_php, script).unwrap();
+        let mut perms = fs::metadata(&mock_php).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&mock_php, perms).unwrap();
+
+        let mut sm = ServiceManager::new(temp_dir.clone());
+        let instance = PhpServerInstance {
+            id: "test-instance".to_string(),
+            name: "Test Server".to_string(),
+            host: "127.0.0.1".to_string(),
+            port: 19876,
+            doc_root: ".".to_string(),
+            php_version: None,
+            auto_start: false,
+        };
+
+        let result = sm.start_php_server(&instance, None, Some(mock_php.to_str().unwrap()));
+        assert!(result.is_err(), "Server should fail to start because process exited immediately");
+        assert!(!sm.is_php_server_running(&instance.id), "Server must not be marked as running");
+
+        // Wait briefly for background forwarder thread to process lines
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        // Verify logs contain EXEC command and stderr output
+        let logs = sm.get_recent_logs();
+        let has_exec = logs.iter().any(|l| matches!(&l.event, LogEvent::CommandExecuted { command } if command.contains("19876")));
+        let has_stderr = logs.iter().any(|l| matches!(&l.event, LogEvent::ProcessOutput { line, is_stderr: true, .. } if line.contains("missing libxyz.so")));
+        let has_err = logs.iter().any(|l| matches!(&l.event, LogEvent::Error(ServiceError::PhpServerFailed { .. })));
+
+        assert!(has_exec, "Expected LogEvent::CommandExecuted in logs");
+        assert!(has_stderr, "Expected LogEvent::ProcessOutput (stderr) in logs");
+        assert!(has_err, "Expected LogEvent::Error in logs");
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_php_server_background_crash_detected_by_poll() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp_dir = std::env::temp_dir().join("amp_test_php_poll_crash");
+        let _ = fs::create_dir_all(&temp_dir);
+        let mock_php = temp_dir.join("php");
+
+        // A mock script that sleeps 150ms and then exits with 1
+        let script = "#!/bin/sh\nsleep 0.15\nexit 1\n";
+        fs::write(&mock_php, script).unwrap();
+        let mut perms = fs::metadata(&mock_php).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&mock_php, perms).unwrap();
+
+        let mut sm = ServiceManager::new(temp_dir.clone());
+        let instance = PhpServerInstance {
+            id: "test-poll-instance".to_string(),
+            name: "Test Poll Server".to_string(),
+            host: "127.0.0.1".to_string(),
+            port: 19877,
+            doc_root: ".".to_string(),
+            php_version: None,
+            auto_start: false,
+        };
+
+        // Spawns and stays alive during the initial 80ms check
+        let result = sm.start_php_server(&instance, None, Some(mock_php.to_str().unwrap()));
+        assert!(result.is_ok(), "Initial start should succeed while sleeping");
+        assert!(sm.is_php_server_running(&instance.id), "Should report running initially");
+
+        // Wait until script exits (150ms)
+        std::thread::sleep(std::time::Duration::from_millis(200));
+
+        // Poll processes - should detect termination
+        sm.poll_active_processes();
+
+        assert!(!sm.is_php_server_running(&instance.id), "Should report not running after crash");
+
+        let logs = sm.get_recent_logs();
+        let has_crash_log = logs.iter().any(|l| matches!(&l.event, LogEvent::Error(ServiceError::PhpServerFailed { details, .. }) if details.contains("terminated unexpectedly")));
+        assert!(has_crash_log, "Expected crash log after unexpected termination");
 
         let _ = fs::remove_dir_all(&temp_dir);
     }
