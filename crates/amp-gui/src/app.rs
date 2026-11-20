@@ -363,6 +363,10 @@ impl AmpApp {
                 self.config.php_servers.retain(|s| s.id != id);
                 let _ = self.config.save(&self.config_path);
             }
+            PhpServerAction::OpenVersions => {
+                self.current_tab = ActiveTab::Versions;
+                self.selected_service_filter = Some(ServiceType::Php);
+            }
         }
     }
 }

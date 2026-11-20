@@ -8,6 +8,7 @@ pub enum PhpServerAction {
     Stop(String),
     Add(PhpServerInstance),
     Remove(String),
+    OpenVersions,
 }
 
 pub fn render_php_servers(
@@ -32,6 +33,25 @@ pub fn render_php_servers(
             .color(Color32::from_rgb(148, 163, 184))
             .size(13.0),
     );
+    ui.add_space(4.0);
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(i18n.t("static_php_recommendation"))
+                .color(Color32::from_rgb(148, 163, 184))
+                .size(12.0),
+        );
+        if ui
+            .button(
+                RichText::new(i18n.t("download_static_php"))
+                    .color(Color32::from_rgb(96, 165, 250))
+                    .underline()
+                    .size(12.0),
+            )
+            .clicked()
+        {
+            actions.push(PhpServerAction::OpenVersions);
+        }
+    });
 
     ui.add_space(14.0);
 

@@ -92,6 +92,8 @@ impl I18n {
         pt.insert("doc_root", "Diretório Raiz");
         pt.insert("host", "Host / IP");
         pt.insert("embedded_php_info", "💡 O PHP possui um servidor web embutido (php -S) ideal para desenvolvimento rápido de múltiplos sites ou APIs sem necessidade do Apache.");
+        pt.insert("static_php_recommendation", "💡 Dica: Se o PHP do sistema falhar por falta de dependências partilhadas, utilize o PHP Estático autónomo (SPC).");
+        pt.insert("download_static_php", "📥 Obter PHP Estático (SPC)");
         pt.insert("create_instance", "Criar Instância");
         pt.insert("remove", "Remover");
         pt.insert("port_busy", "Porta Ocupada");
@@ -220,6 +222,8 @@ impl I18n {
         en.insert("doc_root", "Document Root");
         en.insert("host", "Host / IP");
         en.insert("embedded_php_info", "💡 PHP has a built-in web server (php -S) great for lightweight, rapid development of multiple sites or APIs without Apache.");
+        en.insert("static_php_recommendation", "💡 Tip: If system PHP fails due to missing shared libraries, use the standalone Static PHP (SPC).");
+        en.insert("download_static_php", "📥 Get Static PHP (SPC)");
         en.insert("create_instance", "Create Instance");
         en.insert("remove", "Remove");
         en.insert("port_busy", "Port In Use");
