@@ -24,7 +24,7 @@
       "host": "127.0.0.1",
       "port": 8000,
       "doc_root": "www",
-      "php_version": "8.3.13",
+      "php_version": null,
       "auto_start": false
     }
   ],

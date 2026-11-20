@@ -9,6 +9,7 @@ pub enum PhpServerAction {
     Add(PhpServerInstance),
     Remove(String),
     OpenVersions,
+    SetVersion(String, Option<String>),
 }
 
 pub fn render_php_servers(
@@ -22,6 +23,8 @@ pub fn render_php_servers(
     new_server_port: &mut u16,
     new_server_root: &mut String,
     default_host: &str,
+    available_php_versions: &[String],
+    active_global_php: Option<&str>,
 ) {
     ui.add_space(8.0);
     ui.horizontal(|ui| {
@@ -173,18 +176,53 @@ pub fn render_php_servers(
                         });
                     });
 
-                    ui.add_space(4.0);
-                    ui.label(
-                        RichText::new(format!(
-                            "{}: {} | {}: {}",
-                            i18n.t("doc_root"),
-                            inst.doc_root,
-                            i18n.t("host"),
-                            inst.host
-                        ))
-                        .color(Color32::GRAY)
-                        .size(12.0),
-                    );
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(format!(
+                                "{}: {} | {}: {}",
+                                i18n.t("doc_root"),
+                                inst.doc_root,
+                                i18n.t("host"),
+                                inst.host
+                            ))
+                            .color(Color32::GRAY)
+                            .size(12.0),
+                        );
+
+                        ui.add_space(16.0);
+                        ui.label(RichText::new(format!("{}:", i18n.t("version"))).size(12.0));
+
+                        let auto_label = match active_global_php {
+                            Some(v) => format!("{} ({})", i18n.t("automatic"), v),
+                            None => format!("{} ({})", i18n.t("automatic"), i18n.t("default")),
+                        };
+
+                        let current_display = match &inst.php_version {
+                            Some(v) => v.clone(),
+                            None => auto_label.clone(),
+                        };
+
+                        egui::ComboBox::from_id_salt(format!("php_server_ver_combo_{}", inst.id))
+                            .selected_text(RichText::new(current_display).size(12.0))
+                            .show_ui(ui, |ui| {
+                                if ui
+                                    .selectable_label(inst.php_version.is_none(), &auto_label)
+                                    .clicked()
+                                {
+                                    actions.push(PhpServerAction::SetVersion(inst.id.clone(), None));
+                                }
+                                for ver in available_php_versions {
+                                    let is_selected = inst.php_version.as_deref() == Some(ver.as_str());
+                                    if ui.selectable_label(is_selected, ver).clicked() {
+                                        actions.push(PhpServerAction::SetVersion(
+                                            inst.id.clone(),
+                                            Some(ver.clone()),
+                                        ));
+                                    }
+                                }
+                            });
+                    });
                 });
             ui.add_space(8.0);
         }
