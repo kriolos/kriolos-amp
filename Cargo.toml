@@ -10,3 +10,5 @@ version = "0.1.0"
 edition = "2021"
 authors = ["AMP Control Team"]
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/kriolos/kriolos-amp"
+homepage = "https://github.com/kriolos/kriolos-amp"
