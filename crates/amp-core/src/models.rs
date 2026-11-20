@@ -537,4 +537,31 @@ mod tests {
             Some(PathBuf::from("bin/php/8.5.7/php"))
         );
     }
+
+    #[test]
+    fn test_version_manifest_static_php_packages() {
+        let manifest_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("assets")
+            .join("versions.json");
+
+        let content = std::fs::read_to_string(&manifest_path).expect("versions.json must exist");
+        let manifest: VersionManifest = serde_json::from_str(&content).expect("manifest must parse");
+
+        let static_php_pkgs: Vec<_> = manifest
+            .packages
+            .iter()
+            .filter(|p| p.service_type == ServiceType::Php && p.version == "8.3.11-static")
+            .collect();
+
+        assert!(!static_php_pkgs.is_empty(), "Should contain Static PHP packages under ServiceType::Php");
+
+        let linux_pkg = static_php_pkgs.iter().find(|p| p.platform == "linux-x86_64").expect("Linux x86_64 static package missing");
+        assert!(linux_pkg.recommended, "Static PHP should be recommended for linux");
+        assert_eq!(linux_pkg.binary_path.as_deref(), Some("php"));
+        assert!(linux_pkg.url.contains("static-php-cli"));
+    }
 }
