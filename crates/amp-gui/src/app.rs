@@ -369,6 +369,11 @@ impl AmpApp {
 
 impl eframe::App for AmpApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Poll active processes to detect termination and update states
+        if let Ok(mut sm) = self.service_manager.lock() {
+            sm.poll_active_processes();
+        }
+
         // Poll active download progress
         let mut should_refresh_after_dl = false;
         if let Some(rx) = &mut self.download_rx {
@@ -564,7 +569,7 @@ impl eframe::App for AmpApp {
                 }
                 ActiveTab::PhpServers => {
                     let is_running_checker = |id: &str| {
-                        if let Ok(sm) = self.service_manager.lock() {
+                        if let Ok(mut sm) = self.service_manager.lock() {
                             sm.is_php_server_running(id)
                         } else {
                             false

@@ -104,6 +104,8 @@ pub enum LogEvent {
     DownloadStarted { item_id: String, url: String },
     DownloadFailed { item_id: String, url: String, error: String },
     DownloadCompleted { item_id: String, url: String },
+    CommandExecuted { command: String },
+    ProcessOutput { source: String, line: String, is_stderr: bool },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
