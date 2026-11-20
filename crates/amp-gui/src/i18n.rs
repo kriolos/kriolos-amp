@@ -30,6 +30,8 @@ impl I18n {
         pt.insert("port", "Porta");
         pt.insert("version", "Versão");
         pt.insert("active_version", "Versão Ativa");
+        pt.insert("automatic", "Automático");
+        pt.insert("default", "Padrão");
         pt.insert("no_version_installed", "Nenhum binário disponível");
 
         pt.insert("online", "ONLINE");
@@ -161,6 +163,8 @@ impl I18n {
         en.insert("port", "Port");
         en.insert("version", "Version");
         en.insert("active_version", "Active Version");
+        en.insert("automatic", "Automatic");
+        en.insert("default", "Default");
         en.insert("no_version_installed", "No binary available");
 
         en.insert("online", "ONLINE");

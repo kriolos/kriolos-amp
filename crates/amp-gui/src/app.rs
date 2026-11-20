@@ -369,6 +369,12 @@ impl AmpApp {
                 self.current_tab = ActiveTab::Versions;
                 self.selected_service_filter = Some(ServiceType::Php);
             }
+            PhpServerAction::SetVersion(id, ver) => {
+                if let Some(inst) = self.config.php_servers.iter_mut().find(|s| s.id == id) {
+                    inst.php_version = ver;
+                    let _ = self.config.save(&self.config_path);
+                }
+            }
         }
     }
 }
@@ -582,6 +588,14 @@ impl eframe::App for AmpApp {
                         }
                     };
 
+                    let php_installed = self
+                        .installed_versions
+                        .iter()
+                        .find(|(st, _)| *st == ServiceType::Php)
+                        .map(|(_, v)| v.as_slice())
+                        .unwrap_or(&[]);
+                    let active_php = self.config.get_active_version(ServiceType::Php);
+
                     render_php_servers(
                         ui,
                         &self.i18n,
@@ -593,6 +607,8 @@ impl eframe::App for AmpApp {
                         &mut self.new_php_server_port,
                         &mut self.new_php_server_root,
                         &self.config.default_host,
+                        php_installed,
+                        active_php,
                     );
                 }
                 ActiveTab::Versions => {
