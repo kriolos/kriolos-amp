@@ -194,6 +194,162 @@ cargo test
 
 ---
 
+== 🛠️ Cross-Platform Compilation Guide
+
+`amp-control` is built with 100% portable Rust, allowing you to compile native binaries for **Linux**, **Windows**, and **macOS**.
+
+=== 🐧 1. Linux
+
+==== Native Build (glibc)
+[source,bash]
+----
+# Install system graphics dependencies (Debian/Ubuntu)
+sudo apt-get update && sudo apt-get install -y libx11-dev libasound2-dev libudev-dev
+
+# Build release binary
+cargo build --release -p amp-gui
+# Output: target/release/amp-gui
+----
+
+==== Fully Static Linux Binary (musl)
+To produce a binary that runs on any Linux distribution without glibc version requirements:
+[source,bash]
+----
+rustup target add x86_64-unknown-linux-musl
+cargo build --release -p amp-gui --target x86_64-unknown-linux-musl
+# Output: target/x86_64-unknown-linux-musl/release/amp-gui
+----
+
+=== 🪟 2. Windows (`.exe`)
+
+==== A. Native Build on Windows (MSVC)
+From a Windows machine with Visual Studio Build Tools / C++ runtime installed:
+[source,powershell]
+----
+# Ensure MSVC target is available
+rustup target add x86_64-pc-windows-msvc
+
+# Build release executable
+cargo build --release -p amp-gui --target x86_64-pc-windows-msvc
+# Output: target\x86_64-pc-windows-msvc\release\amp-gui.exe
+----
+
+==== B. Cross-Compiling to Windows from Linux (MinGW)
+You can build a Windows `.exe` directly from a Linux machine using the GNU toolchain:
+[source,bash]
+----
+# 1. Install MinGW-w64 compiler
+sudo apt-get install -y mingw-w64
+
+# 2. Add Windows GNU target
+rustup target add x86_64-pc-windows-gnu
+
+# 3. Compile
+cargo build --release -p amp-gui --target x86_64-pc-windows-gnu
+# Output: target/x86_64-pc-windows-gnu/release/amp-gui.exe
+----
+
+==== C. Using `cross` (Docker / Podman)
+If you prefer zero local compiler configuration, use https://github.com/cross-rs/cross[`cross`]:
+[source,bash]
+----
+cargo install cross --git https://github.com/cross-rs/cross
+cross build --release -p amp-gui --target x86_64-pc-windows-gnu
+----
+
+=== 🍎 3. macOS (Apple Silicon & Intel)
+
+Because GUI applications (`egui`/`eframe`) link against Apple system frameworks (`Cocoa`, `Metal`, `CoreGraphics`), native compilation or an environment with the Apple SDK is recommended.
+
+==== A. Native Build on macOS
+[source,bash]
+----
+# For Apple Silicon (M1, M2, M3, M4)
+rustup target add aarch64-apple-darwin
+cargo build --release -p amp-gui --target aarch64-apple-darwin
+# Output: target/aarch64-apple-darwin/release/amp-gui
+
+# For Intel Macs
+rustup target add x86_64-apple-darwin
+cargo build --release -p amp-gui --target x86_64-apple-darwin
+# Output: target/x86_64-apple-darwin/release/amp-gui
+----
+
+==== B. Creating a Universal Binary (Fat Binary)
+To generate a single binary that runs natively on both Apple Silicon and Intel Macs:
+[source,bash]
+----
+# Combine both architectures with lipo
+lipo -create -output amp-control-macos-universal \
+  target/aarch64-apple-darwin/release/amp-gui \
+  target/x86_64-apple-darwin/release/amp-gui
+
+# Verify architectures
+file amp-control-macos-universal
+# Output: Mach-O universal binary with 2 architectures: [x86_64] [arm64]
+----
+
+==== C. Cross-Compiling from Linux to macOS
+Cross-compiling to macOS from a Linux host requires Apple SDK headers and linker tools. You can either:
+1. Use **https://github.com/tpoechtrager/osxcross[osxcross]** with an extracted Xcode SDK.
+2. **Recommended:** Use a **GitHub Actions Matrix Workflow** (see below) to build natively on Apple's official runners for free.
+
+=== ⚙️ 4. Automated Multi-Platform CI/CD (GitHub Actions)
+
+Create `.github/workflows/build.yml` in your repository to automatically build and release binaries for all operating systems simultaneously:
+
+[source,yaml]
+----
+name: Release Builds
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: amp-control-linux-x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: amp-control-windows-x64.exe
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: amp-control-macos-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            artifact_name: amp-control-macos-x86_64
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux Dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libasound2-dev libudev-dev
+
+      - name: Build Release
+        run: cargo build --release --target ${{ matrix.target }} -p amp-gui
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: target/${{ matrix.target }}/release/amp-gui*
+----
+
+---
+
 == 📄 License
 
 Distributed under the **MIT** or **Apache-2.0** license.
