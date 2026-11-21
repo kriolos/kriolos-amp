@@ -296,7 +296,7 @@ Cross-compiling to macOS from a Linux host requires Apple SDK headers and linker
 
 === ⚙️ 4. Automated Multi-Platform CI/CD (GitHub Actions)
 
-Create `.github/workflows/build.yml` in your repository to automatically build and release binaries for all operating systems simultaneously:
+The repository includes a ready-to-use production CI/CD workflow at `.github/workflows/release.yml` that automatically builds, tests, packages, and attaches releases with SHA-256 checksums for Linux, Windows, and macOS on every tagged release (`v*`) or manual dispatch:
 
 [source,yaml]
 ----

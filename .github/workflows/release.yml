@@ -82,6 +82,7 @@ jobs:
           cp target/${{ matrix.target }}/release/${{ matrix.binary_name }} staging/
           cp config.json staging/
           cp -r assets staging/
+          cp -r www staging/
           cp README.adoc staging/
           cd staging
           tar -czvf ../${{ matrix.asset_name }}.${{ matrix.archive_ext }} *
@@ -96,6 +97,7 @@ jobs:
           Copy-Item target/${{ matrix.target }}/release/${{ matrix.binary_name }} staging/
           Copy-Item config.json staging/
           Copy-Item -Recurse assets staging/
+          Copy-Item -Recurse www staging/
           Copy-Item README.adoc staging/
           Compress-Archive -Path staging/* -DestinationPath "${{ matrix.asset_name }}.${{ matrix.archive_ext }}" -Force
           $hash = (Get-FileHash -Algorithm SHA256 "${{ matrix.asset_name }}.${{ matrix.archive_ext }}").Hash.ToLower()
