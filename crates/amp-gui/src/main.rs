@@ -1,3 +1,6 @@
+// Hide console window on Windows when launched as a GUI application
+#![windows_subsystem = "windows"]
+
 mod app;
 mod components;
 mod i18n;
