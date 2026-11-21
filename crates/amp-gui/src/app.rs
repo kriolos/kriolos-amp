@@ -116,6 +116,7 @@ impl AmpApp {
             ServiceType::Mariadb,
             ServiceType::Mysql,
             ServiceType::Postgresql,
+            ServiceType::Tool,
         ];
 
         let mut config_changed = false;
