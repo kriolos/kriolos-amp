@@ -537,7 +537,7 @@ impl ServiceManager {
             ServiceType::Mysql => vec!["bin/mysqld.exe", "mysqld.exe"],
             ServiceType::Mariadb => vec!["bin/mariadbd.exe", "bin/mysqld.exe", "mariadbd.exe"],
             ServiceType::Postgresql => vec!["bin/postgres.exe", "postgres.exe"],
-            ServiceType::Tool => vec![],
+            ServiceType::Tool => vec!["spc.exe", "bin/spc.exe", "mkcert.exe"],
         };
 
         #[cfg(not(windows))]
@@ -547,7 +547,7 @@ impl ServiceManager {
             ServiceType::Mysql => vec!["bin/mysqld", "mysqld"],
             ServiceType::Mariadb => vec!["bin/mariadbd", "bin/mysqld", "mariadbd", "mysqld"],
             ServiceType::Postgresql => vec!["bin/postgres", "postgres"],
-            ServiceType::Tool => vec![],
+            ServiceType::Tool => vec!["spc", "bin/spc", "mkcert"],
         };
 
         for candidate in candidates {
@@ -821,6 +821,26 @@ mod tests {
         let discovered = ServiceManager::discover_binary_path(ServiceType::Php, &temp_dir);
         assert!(discovered.is_some());
         assert_eq!(discovered.unwrap(), php_file);
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_discover_tool_binary_path_with_temp_dir() {
+        let temp_dir = std::env::temp_dir().join("amp_test_tool_discovery");
+        let tool_ver = temp_dir.join("2.8.5");
+        let _ = fs::create_dir_all(&tool_ver);
+
+        #[cfg(not(windows))]
+        let spc_file = tool_ver.join("spc");
+        #[cfg(windows)]
+        let spc_file = tool_ver.join("spc.exe");
+
+        let _ = fs::write(&spc_file, b"mock_spc_tool");
+
+        let discovered = ServiceManager::discover_binary_path(ServiceType::Tool, &tool_ver);
+        assert!(discovered.is_some());
+        assert_eq!(discovered.unwrap(), spc_file);
 
         let _ = fs::remove_dir_all(&temp_dir);
     }
