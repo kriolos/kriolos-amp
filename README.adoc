@@ -85,6 +85,105 @@ A primary design goal is the ability to generate an optional **self-contained, z
 
 ---
 
+== 🐘 Compiling Custom PHP Runtimes with SPC
+
+While **AMP Control** provides pre-compiled zero-dependency static PHP runtimes (such as `PHP 8.3 Static CLI`) directly downloadable in the *Versions & Downloads* tab with one click, you can also use **https://static-php.dev/[Static PHP CLI (SPC)]** to build custom PHP binaries tailored with your exact choice of extensions, PHP version (8.2, 8.3, 8.4, 8.5), or SAPI targets (`cli`, `fpm`, `micro`).
+
+=== 🔍 1. Obtaining the SPC Builder
+In AMP Control, navigate to **Versions & Downloads**, select **Tools & VC++**, and download **SPC Builder CLI** for your platform. The executable is placed in:
+
+* **Linux / macOS**: `bin/tools/2.8.5/spc`
+* **Windows**: `bin\tools\2.8.5\spc.exe`
+
+=== 📋 2. Step-by-Step Build Workflow
+
+==== Step 1: System Health Check & Auto-Fix
+Run the `doctor` command to verify that your system has the required C compilers (`clang`/`gcc`, `make`, `cmake`) and automatically install missing build tools:
+[source,bash]
+----
+# Linux / macOS
+./bin/tools/2.8.5/spc doctor --auto-fix
+
+# Windows (PowerShell)
+.\bin\tools\2.8.5\spc.exe doctor --auto-fix
+----
+
+==== Step 2: Download PHP Source & Extension Libraries
+Specify the target PHP version (e.g. `8.3` or `8.4`) and the comma-separated extensions you want to bundle:
+[source,bash]
+----
+./bin/tools/2.8.5/spc download \
+  --with-php=8.3 \
+  --for-extensions="curl,mbstring,openssl,pdo_mysql,sqlite3,pdo_sqlite,redis,zip,gd"
+----
+
+==== Step 3: Compile the Standalone Binary
+Compile the static binary with zero dynamic library dependencies (using `musl` on Linux):
+[source,bash]
+----
+# Compile CLI binary (for built-in web servers 'php -S' and command-line execution):
+./bin/tools/2.8.5/spc build \
+  --build-cli \
+  "curl,mbstring,openssl,pdo_mysql,sqlite3,pdo_sqlite,redis,zip,gd"
+
+# Optional: To compile both CLI and PHP-FPM simultaneously:
+./bin/tools/2.8.5/spc build \
+  --build-cli \
+  --build-fpm \
+  "curl,mbstring,openssl,pdo_mysql,sqlite3,pdo_sqlite,redis,zip,gd"
+----
+Upon completion, the compiled binaries are located under `buildroot/bin/`:
+* `buildroot/bin/php` (CLI interpreter)
+* `buildroot/bin/php-fpm` (FastCGI Process Manager)
+
+==== Step 4: Register in AMP Control
+Copy the compiled binary into the AMP Control `bin/php/` directory with your chosen version name:
+[source,bash]
+----
+# Linux / macOS
+mkdir -p bin/php/8.3-custom
+cp buildroot/bin/php bin/php/8.3-custom/php
+chmod +x bin/php/8.3-custom/php
+
+# Windows (PowerShell)
+New-Item -ItemType Directory -Force -Path bin\php\8.3-custom
+Copy-Item buildroot\bin\php.exe bin\php\8.3-custom\php.exe
+----
+When you return to AMP Control, the new version **`8.3-custom`** will be automatically detected and appear in the **Versions & Downloads** tab, as well as the **PHP Servers** version dropdown!
+
+=== 🧪 3. Popular Extension Recipes
+
+==== 🌐 Standard Web Development Stack
+[source,bash]
+----
+./bin/tools/2.8.5/spc build --build-cli \
+  "apcu,bcmath,calendar,ctype,curl,dom,exif,fileinfo,filter,gd,iconv,intl,mbstring,mysqli,mysqlnd,opcache,openssl,pdo,pdo_mysql,pdo_sqlite,phar,redis,session,simplexml,sockets,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib"
+----
+
+==== 🚀 High-Concurrency & Async Stack (Swoole / Workerman)
+[source,bash]
+----
+./bin/tools/2.8.5/spc build --build-cli \
+  "curl,mbstring,openssl,pdo_mysql,redis,swoole,event,sockets,pcntl,posix"
+----
+
+==== 📦 Micro SAPI: Single-File Executable Applications
+Combine a compiled `.phar` application with the self-extracting micro SAPI to generate a single standalone binary that runs without PHP installed:
+[source,bash]
+----
+# Build the micro SAPI archive
+./bin/tools/2.8.5/spc build --build-micro "curl,mbstring,openssl,pdo_sqlite"
+
+# Concatenate micro SAPI with your PHAR application
+cat buildroot/bin/micro.sfx my-app.phar > my-app
+chmod +x my-app
+
+# Run anywhere!
+./my-app
+----
+
+---
+
 == 🔄 Comparison with Alternatives
 
 [cols="2,2,2,3", options="header"]
