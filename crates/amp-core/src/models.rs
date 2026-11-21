@@ -641,15 +641,23 @@ mod tests {
         let static_php_pkgs: Vec<_> = manifest
             .packages
             .iter()
-            .filter(|p| p.service_type == ServiceType::Php && p.version == "8.3.11-static")
+            .filter(|p| p.service_type == ServiceType::Php && p.version.starts_with("8.3.11-static"))
             .collect();
 
         assert!(!static_php_pkgs.is_empty(), "Should contain Static PHP packages under ServiceType::Php");
 
         let linux_pkg = static_php_pkgs.iter().find(|p| p.platform == "linux-x86_64").expect("Linux x86_64 static package missing");
+        assert_eq!(linux_pkg.version, "8.3.11-static-linux-x64");
         assert!(linux_pkg.recommended, "Static PHP should be recommended for linux");
         assert_eq!(linux_pkg.binary_path.as_deref(), Some("php"));
         assert!(linux_pkg.url.contains("static-php-cli"));
+
+        let php86_pkg = manifest
+            .packages
+            .iter()
+            .find(|p| p.service_type == ServiceType::Php && p.version == "8.6.0-dev-src")
+            .expect("PHP 8.6 source package must exist in manifest");
+        assert_eq!(php86_pkg.platform, "any");
     }
 
     #[test]

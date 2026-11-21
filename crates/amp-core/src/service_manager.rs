@@ -828,7 +828,7 @@ mod tests {
     #[test]
     fn test_discover_tool_binary_path_with_temp_dir() {
         let temp_dir = std::env::temp_dir().join("amp_test_tool_discovery");
-        let tool_ver = temp_dir.join("2.8.5");
+        let tool_ver = temp_dir.join("2.8.5-linux-x64");
         let _ = fs::create_dir_all(&tool_ver);
 
         #[cfg(not(windows))]
