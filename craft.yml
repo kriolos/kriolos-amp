@@ -1,0 +1,5 @@
+php-version: 8.5
+extensions: bcmath,posix,phar,zlib,openssl,curl,fileinfo,tokenizer
+sapi:
+  - cli
+  - micro

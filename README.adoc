@@ -92,17 +92,51 @@ While **AMP Control** provides pre-compiled zero-dependency static PHP runtimes 
 === 🔍 1. Obtaining the SPC Builder
 In AMP Control, navigate to **Versions & Downloads**, select **Tools & VC++**, and download **SPC Builder CLI** for your platform. The executable is placed in:
 
-* **Linux / macOS**: `bin/tools/2.8.5/spc`
-* **Windows**: `bin\tools\2.8.5\spc.exe`
+* **Linux (x86_64)**: `bin/tools/2.8.5-linux-x64/spc`
+* **Linux (ARM64)**: `bin/tools/2.8.5-linux-arm64/spc`
+* **macOS (Apple Silicon)**: `bin/tools/2.8.5-macos-arm64/spc`
+* **macOS (Intel)**: `bin/tools/2.8.5-macos-x64/spc`
+* **Windows**: `bin\tools\2.8.5-win-x64\spc.exe`
 
-=== 📋 2. Step-by-Step Build Workflow
+=== 📜 2. Declarative Recipe Build (`craft.yml`)
+The fastest and most consistent cross-platform way to build custom static PHP runtimes is using the declarative SPC recipe file `craft.yml`.
+
+A pre-configured recipe is included in the project root (`craft.yml`):
+[source,yaml]
+----
+php-version: 8.5
+extensions: bcmath,posix,phar,zlib,openssl,curl,fileinfo,tokenizer
+sapi:
+  - cli
+  - micro
+----
+
+To build the runtime automatically on any platform (the tool handles health check, dependency downloads, and compilation in one step):
+
+[source,bash]
+----
+# Linux (x86_64)
+./bin/tools/2.8.5-linux-x64/spc craft craft.yml
+
+# macOS (Apple Silicon)
+./bin/tools/2.8.5-macos-arm64/spc craft craft.yml
+
+# Windows (PowerShell)
+.\bin\tools\2.8.5-win-x64\spc.exe craft craft.yml
+----
+
+The resulting standalone binaries are automatically placed in `buildroot/bin/`:
+* `buildroot/bin/php` (`php.exe` on Windows)
+* `buildroot/bin/micro.sfx` (Micro SAPI self-executable wrapper)
+
+=== 📋 3. Step-by-Step Manual Build Workflow
 
 ==== Step 1: System Health Check & Auto-Fix
 Run the `doctor` command to verify that your system has the required C compilers (`clang`/`gcc`, `make`, `cmake`) and automatically install missing build tools:
 [source,bash]
 ----
 # Linux / macOS
-./bin/tools/2.8.5/spc doctor --auto-fix
+./bin/tools/2.8.5-<arch>/spc doctor --auto-fix
 
 # Windows (PowerShell)
 .\bin\tools\2.8.5\spc.exe doctor --auto-fix
@@ -112,7 +146,7 @@ Run the `doctor` command to verify that your system has the required C compilers
 Specify the target PHP version (e.g. `8.3` or `8.4`) and the comma-separated extensions you want to bundle:
 [source,bash]
 ----
-./bin/tools/2.8.5/spc download \
+./bin/tools/2.8.5-<arch>/spc download \
   --with-php=8.3 \
   --for-extensions="curl,mbstring,openssl,pdo_mysql,sqlite3,pdo_sqlite,redis,zip,gd"
 ----
@@ -122,12 +156,12 @@ Compile the static binary with zero dynamic library dependencies (using `musl` o
 [source,bash]
 ----
 # Compile CLI binary (for built-in web servers 'php -S' and command-line execution):
-./bin/tools/2.8.5/spc build \
+./bin/tools/2.8.5-<arch>/spc build \
   --build-cli \
   "curl,mbstring,openssl,pdo_mysql,sqlite3,pdo_sqlite,redis,zip,gd"
 
 # Optional: To compile both CLI and PHP-FPM simultaneously:
-./bin/tools/2.8.5/spc build \
+./bin/tools/2.8.5-<arch>/spc build \
   --build-cli \
   --build-fpm \
   "curl,mbstring,openssl,pdo_mysql,sqlite3,pdo_sqlite,redis,zip,gd"
@@ -156,14 +190,14 @@ When you return to AMP Control, the new version **`8.3-custom`** will be automat
 ==== 🌐 Standard Web Development Stack
 [source,bash]
 ----
-./bin/tools/2.8.5/spc build --build-cli \
+./bin/tools/2.8.5-<arch>/spc build --build-cli \
   "apcu,bcmath,calendar,ctype,curl,dom,exif,fileinfo,filter,gd,iconv,intl,mbstring,mysqli,mysqlnd,opcache,openssl,pdo,pdo_mysql,pdo_sqlite,phar,redis,session,simplexml,sockets,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib"
 ----
 
 ==== 🚀 High-Concurrency & Async Stack (Swoole / Workerman)
 [source,bash]
 ----
-./bin/tools/2.8.5/spc build --build-cli \
+./bin/tools/2.8.5-<arch>/spc build --build-cli \
   "curl,mbstring,openssl,pdo_mysql,redis,swoole,event,sockets,pcntl,posix"
 ----
 
@@ -172,7 +206,7 @@ Combine a compiled `.phar` application with the self-extracting micro SAPI to ge
 [source,bash]
 ----
 # Build the micro SAPI archive
-./bin/tools/2.8.5/spc build --build-micro "curl,mbstring,openssl,pdo_sqlite"
+./bin/tools/2.8.5-<arch>/spc build --build-micro "curl,mbstring,openssl,pdo_sqlite"
 
 # Concatenate micro SAPI with your PHAR application
 cat buildroot/bin/micro.sfx my-app.phar > my-app
