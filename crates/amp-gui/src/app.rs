@@ -48,6 +48,7 @@ pub struct AmpApp {
     new_php_server_host: String,
     new_php_server_port: u16,
     new_php_server_root: String,
+    dns_shutdown_sender: Option<tokio::sync::broadcast::Sender<()>>,
     tokio_handle: tokio::runtime::Handle,
 }
 
@@ -105,10 +106,12 @@ impl AmpApp {
             new_php_server_host: String::new(),
             new_php_server_port: amp_core::models::defaults::DEFAULT_PHP_SERVER_PORT,
             new_php_server_root: amp_core::models::defaults::DEFAULT_DOC_ROOT.to_string(),
+            dns_shutdown_sender: None,
             tokio_handle,
         };
 
         app.refresh_installed_versions();
+        app.sync_dns_service();
         app
     }
 
@@ -379,6 +382,49 @@ impl AmpApp {
                     let _ = self.config.save(&self.config_path);
                 }
             }
+        }
+    }
+
+    fn sync_dns_service(&mut self) {
+        if self.config.dns_enabled {
+            if self.dns_shutdown_sender.is_none() {
+                let (tx, rx) = tokio::sync::broadcast::channel(1);
+                let dns_cfg = amp_core::DnsConfig {
+                    bind_address: "127.0.0.1".to_string(),
+                    port: self.config.dns_port,
+                    tld: self.config.dns_tld.clone(),
+                    target_ipv4: std::net::Ipv4Addr::new(127, 0, 0, 1),
+                    target_ipv6: std::net::Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1),
+                    upstream: if self.config.dns_upstream.trim().is_empty() {
+                        None
+                    } else {
+                        Some(self.config.dns_upstream.clone())
+                    },
+                };
+                self.tokio_handle.spawn(async move {
+                    let _ = amp_core::DnsServer::run_server(dns_cfg, rx).await;
+                });
+                self.dns_shutdown_sender = Some(tx);
+            }
+        } else if let Some(tx) = self.dns_shutdown_sender.take() {
+            let _ = tx.send(());
+        }
+
+        if self.config.dns_sync_hosts {
+            let domains = amp_core::HostsSync::scan_www_domains(&self.config.root_www_dir, &self.config.dns_tld);
+            let default_hosts = amp_core::HostsSync::default_hosts_path();
+            let _ = amp_core::HostsSync::update_hosts_file(&default_hosts, &domains, "127.0.0.1", "::1");
+        } else {
+            let default_hosts = amp_core::HostsSync::default_hosts_path();
+            let _ = amp_core::HostsSync::clean_hosts_file(&default_hosts);
+        }
+    }
+}
+
+impl Drop for AmpApp {
+    fn drop(&mut self) {
+        if let Some(tx) = self.dns_shutdown_sender.take() {
+            let _ = tx.send(());
         }
     }
 }
@@ -687,6 +733,7 @@ impl eframe::App for AmpApp {
                         sm.set_data_dir(self.config.data_dir.clone());
                         sm.set_bind_address(self.config.bind_address.clone());
                     }
+                    self.sync_dns_service();
                     self.settings_status = Some(self.i18n.t("settings_saved").to_string());
                     self.status_bar_message = Some((self.i18n.t("settings_saved").to_string(), false));
                 }
@@ -697,6 +744,7 @@ impl eframe::App for AmpApp {
                         sm.set_data_dir(self.config.data_dir.clone());
                         sm.set_bind_address(self.config.bind_address.clone());
                     }
+                    self.sync_dns_service();
                     self.i18n.set_language(&self.config.language);
                     self.settings_status = Some(self.i18n.t("defaults_restored").to_string());
                     self.status_bar_message = Some((self.i18n.t("defaults_restored").to_string(), false));

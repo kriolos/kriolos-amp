@@ -140,6 +140,9 @@ pub mod defaults {
     pub const DEFAULT_MARIADB_PORT: u16 = 3307;
     pub const DEFAULT_POSTGRESQL_PORT: u16 = 5432;
     pub const DEFAULT_PHP_SERVER_PORT: u16 = 8000;
+    pub const DEFAULT_DNS_PORT: u16 = 5353;
+    pub const DEFAULT_DNS_TLD: &str = "test";
+    pub const DEFAULT_DNS_UPSTREAM: &str = "1.1.1.1:53";
     pub const DEFAULT_LANGUAGE: &str = "pt-PT";
     pub const DEFAULT_THEME: &str = "dark";
     pub const DEFAULT_MANIFEST_URL: &str =
@@ -200,6 +203,18 @@ fn default_mariadb_port() -> u16 {
 
 fn default_postgresql_port() -> u16 {
     defaults::DEFAULT_POSTGRESQL_PORT
+}
+
+fn default_dns_port() -> u16 {
+    defaults::DEFAULT_DNS_PORT
+}
+
+fn default_dns_tld() -> String {
+    defaults::DEFAULT_DNS_TLD.to_string()
+}
+
+fn default_dns_upstream() -> String {
+    defaults::DEFAULT_DNS_UPSTREAM.to_string()
 }
 
 fn default_manifest_url() -> String {
@@ -291,6 +306,16 @@ pub struct AppConfig {
     pub mariadb_port: u16,
     #[serde(default = "default_postgresql_port")]
     pub postgresql_port: u16,
+    #[serde(default)]
+    pub dns_enabled: bool,
+    #[serde(default = "default_dns_port")]
+    pub dns_port: u16,
+    #[serde(default = "default_dns_tld")]
+    pub dns_tld: String,
+    #[serde(default = "default_dns_upstream")]
+    pub dns_upstream: String,
+    #[serde(default)]
+    pub dns_sync_hosts: bool,
     pub active_apache_version: Option<String>,
     pub active_php_version: Option<String>,
     pub active_mysql_version: Option<String>,
@@ -321,6 +346,11 @@ impl Default for AppConfig {
             mysql_port: defaults::DEFAULT_MYSQL_PORT,
             mariadb_port: defaults::DEFAULT_MARIADB_PORT,
             postgresql_port: defaults::DEFAULT_POSTGRESQL_PORT,
+            dns_enabled: false,
+            dns_port: defaults::DEFAULT_DNS_PORT,
+            dns_tld: defaults::DEFAULT_DNS_TLD.to_string(),
+            dns_upstream: defaults::DEFAULT_DNS_UPSTREAM.to_string(),
+            dns_sync_hosts: false,
             active_apache_version: None,
             active_php_version: None,
             active_mysql_version: None,

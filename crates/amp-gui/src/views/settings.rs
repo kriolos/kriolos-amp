@@ -144,6 +144,39 @@ pub fn render_settings(
         ui.separator();
         ui.add_space(10.0);
 
+        // --- 2.5. Wildcard DNS & Domain Resolution (*.test) ---
+        ui.heading(RichText::new("🛰️ Wildcard DNS & Resolução de Domínios (*.test)").size(16.0));
+        ui.add_space(6.0);
+
+        ui.horizontal(|ui| {
+            ui.checkbox(&mut config.dns_enabled, "Ativar Servidor DNS Embutido");
+            ui.add_space(16.0);
+            ui.checkbox(&mut config.dns_sync_hosts, "Sincronizar Arquivo hosts do Sistema");
+        });
+        ui.add_space(6.0);
+
+        egui::Grid::new("dns_settings_grid")
+            .num_columns(4)
+            .spacing([24.0, 10.0])
+            .show(ui, |ui| {
+                ui.label("Porta DNS (UDP):");
+                ui.add(egui::DragValue::new(&mut config.dns_port).range(1..=65535));
+
+                ui.label("TLD Wildcard:");
+                ui.add(egui::TextEdit::singleline(&mut config.dns_tld).desired_width(100.0).hint_text("test"));
+                ui.end_row();
+
+                ui.label("DNS Upstream:");
+                ui.add(egui::TextEdit::singleline(&mut config.dns_upstream).desired_width(160.0).hint_text("1.1.1.1:53"));
+
+                ui.label(RichText::new("(Forwarding de domínios externos)").color(Color32::from_rgb(148, 163, 184)).size(11.0));
+                ui.end_row();
+            });
+
+        ui.add_space(18.0);
+        ui.separator();
+        ui.add_space(10.0);
+
         // --- 3. Directory Paths ---
         ui.heading(RichText::new(i18n.t("directory_paths")).size(16.0));
         ui.add_space(6.0);
