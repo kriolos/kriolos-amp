@@ -130,7 +130,9 @@ pub mod defaults {
     pub const DEFAULT_HOST: &str = "127.0.0.1";
     pub const DEFAULT_DOC_ROOT: &str = "www";
     pub const DEFAULT_BIN_DIR: &str = "bin";
+    pub const DEFAULT_DATA_DIR: &str = "data";
     pub const DEFAULT_LOGS_DIR: &str = "logs";
+    pub const DEFAULT_BIND_ADDRESS: &str = "127.0.0.1";
     pub const DEFAULT_APACHE_PORT: u16 = 8080;
     pub const DEFAULT_APACHE_SSL_PORT: u16 = 8443;
     pub const DEFAULT_PHP_FPM_PORT: u16 = 9000;
@@ -166,6 +168,14 @@ fn default_bin_dir() -> PathBuf {
 
 fn default_logs_dir() -> PathBuf {
     PathBuf::from(defaults::DEFAULT_LOGS_DIR)
+}
+
+fn default_data_dir() -> PathBuf {
+    PathBuf::from(defaults::DEFAULT_DATA_DIR)
+}
+
+fn default_bind_address() -> String {
+    defaults::DEFAULT_BIND_ADDRESS.to_string()
 }
 
 fn default_apache_port() -> u16 {
@@ -261,10 +271,14 @@ pub struct AppConfig {
     pub root_www_dir: PathBuf,
     #[serde(default = "default_bin_dir")]
     pub bin_dir: PathBuf,
+    #[serde(default = "default_data_dir")]
+    pub data_dir: PathBuf,
     #[serde(default = "default_logs_dir")]
     pub logs_dir: PathBuf,
     #[serde(default = "default_host")]
     pub default_host: String,
+    #[serde(default = "default_bind_address")]
+    pub bind_address: String,
     #[serde(default = "default_apache_port")]
     pub apache_port: u16,
     #[serde(default = "default_apache_ssl_port")]
@@ -297,8 +311,10 @@ impl Default for AppConfig {
             theme: defaults::DEFAULT_THEME.to_string(),
             root_www_dir: PathBuf::from(defaults::DEFAULT_DOC_ROOT),
             bin_dir: PathBuf::from(defaults::DEFAULT_BIN_DIR),
+            data_dir: PathBuf::from(defaults::DEFAULT_DATA_DIR),
             logs_dir: PathBuf::from(defaults::DEFAULT_LOGS_DIR),
             default_host: defaults::DEFAULT_HOST.to_string(),
+            bind_address: defaults::DEFAULT_BIND_ADDRESS.to_string(),
             apache_port: defaults::DEFAULT_APACHE_PORT,
             apache_ssl_port: defaults::DEFAULT_APACHE_SSL_PORT,
             php_fpm_port: defaults::DEFAULT_PHP_FPM_PORT,
@@ -665,16 +681,21 @@ mod tests {
         // Test default instance
         let default_config = AppConfig::default();
         assert_eq!(default_config.default_host, defaults::DEFAULT_HOST);
+        assert_eq!(default_config.bind_address, defaults::DEFAULT_BIND_ADDRESS);
         assert_eq!(default_config.root_www_dir, PathBuf::from(defaults::DEFAULT_DOC_ROOT));
+        assert_eq!(default_config.data_dir, PathBuf::from(defaults::DEFAULT_DATA_DIR));
 
         // Test backward-compatibility deserialization (empty JSON object)
         let parsed: AppConfig = serde_json::from_str("{}").expect("empty json should deserialize with defaults");
         assert_eq!(parsed.default_host, defaults::DEFAULT_HOST);
+        assert_eq!(parsed.bind_address, defaults::DEFAULT_BIND_ADDRESS);
+        assert_eq!(parsed.data_dir, PathBuf::from(defaults::DEFAULT_DATA_DIR));
         assert_eq!(parsed.apache_port, defaults::DEFAULT_APACHE_PORT);
 
-        // Test custom host serialization/deserialization
-        let custom_json = r#"{"default_host": "0.0.0.0"}"#;
+        // Test custom host & bind_address serialization/deserialization
+        let custom_json = r#"{"default_host": "0.0.0.0", "bind_address": "192.168.1.100"}"#;
         let custom_parsed: AppConfig = serde_json::from_str(custom_json).expect("custom json should deserialize");
         assert_eq!(custom_parsed.default_host, "0.0.0.0");
+        assert_eq!(custom_parsed.bind_address, "192.168.1.100");
     }
 }

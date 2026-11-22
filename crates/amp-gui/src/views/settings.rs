@@ -95,11 +95,19 @@ pub fn render_settings(
             ui.label(format!("{}:", i18n.t("default_host")));
             ui.add(
                 egui::TextEdit::singleline(&mut config.default_host)
-                    .desired_width(160.0)
+                    .desired_width(140.0)
                     .hint_text(amp_core::models::defaults::DEFAULT_HOST),
             );
+
+            ui.add_space(16.0);
+            ui.label("DB Bind Address:");
+            ui.add(
+                egui::TextEdit::singleline(&mut config.bind_address)
+                    .desired_width(140.0)
+                    .hint_text(amp_core::models::defaults::DEFAULT_BIND_ADDRESS),
+            );
             ui.label(
-                RichText::new("(ex: 127.0.0.1, localhost, 0.0.0.0)")
+                RichText::new("(ex: 127.0.0.1 ou 0.0.0.0)")
                     .color(Color32::from_rgb(148, 163, 184))
                     .size(11.0),
             );
@@ -142,6 +150,7 @@ pub fn render_settings(
 
         let mut www_str = config.root_www_dir.to_string_lossy().to_string();
         let mut bin_str = config.bin_dir.to_string_lossy().to_string();
+        let mut data_str = config.data_dir.to_string_lossy().to_string();
         let mut logs_str = config.logs_dir.to_string_lossy().to_string();
 
         egui::Grid::new("paths_settings_grid")
@@ -166,6 +175,17 @@ pub fn render_settings(
                 if ui.button(i18n.t("browse")).clicked() {
                     if let Some(path) = rfd::FileDialog::new().pick_folder() {
                         config.bin_dir = path;
+                    }
+                }
+                ui.end_row();
+
+                ui.label("Data (DB):");
+                if ui.add(egui::TextEdit::singleline(&mut data_str).desired_width(300.0)).changed() {
+                    config.data_dir = data_str.clone().into();
+                }
+                if ui.button(i18n.t("browse")).clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                        config.data_dir = path;
                     }
                 }
                 ui.end_row();

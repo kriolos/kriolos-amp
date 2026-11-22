@@ -18,6 +18,8 @@ pub struct LogMessage {
 
 pub struct ServiceManager {
     base_bin_dir: PathBuf,
+    base_data_dir: PathBuf,
+    bind_address: String,
     active_processes: HashMap<ServiceType, Child>,
     active_ports: HashMap<ServiceType, u16>,
     service_errors: HashMap<ServiceType, ServiceError>,
@@ -31,6 +33,8 @@ impl ServiceManager {
         let (log_sender, _) = broadcast::channel(500);
         Self {
             base_bin_dir,
+            base_data_dir: PathBuf::from(crate::models::defaults::DEFAULT_DATA_DIR),
+            bind_address: crate::models::defaults::DEFAULT_BIND_ADDRESS.to_string(),
             active_processes: HashMap::new(),
             active_ports: HashMap::new(),
             service_errors: HashMap::new(),
@@ -38,6 +42,14 @@ impl ServiceManager {
             log_sender,
             recent_logs: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+
+    pub fn set_data_dir(&mut self, data_dir: PathBuf) {
+        self.base_data_dir = data_dir;
+    }
+
+    pub fn set_bind_address(&mut self, bind_address: String) {
+        self.bind_address = bind_address;
     }
 
     pub fn subscribe_logs(&self) -> broadcast::Receiver<LogMessage> {
@@ -198,34 +210,55 @@ impl ServiceManager {
 
         self.add_log_event(LogEvent::Starting { service, port });
 
-        let cmd_str = match service {
-            ServiceType::Apache => format!("{} -D FOREGROUND", bin_path.display()),
-            ServiceType::Mysql | ServiceType::Mariadb => format!("{} --port={}", bin_path.display(), port),
-            ServiceType::Postgresql => format!("{} -p {}", bin_path.display(), port),
-            _ => format!("{}", bin_path.display()),
-        };
-        self.add_log_event(LogEvent::CommandExecuted {
-            command: cmd_str,
-        });
+        let mut cmd = if let Some(db_engine) = crate::db_supervisor::DbEngine::from_service_type(service) {
+            let data_dir = crate::db_supervisor::DbSupervisor::resolve_data_dir(
+                db_engine,
+                version,
+                &self.base_data_dir,
+            );
+            if let Err(e) = crate::db_supervisor::DbSupervisor::ensure_data_initialized(
+                db_engine,
+                &bin_path,
+                &data_dir,
+            ) {
+                self.service_errors.insert(service, e.clone());
+                self.add_log_event(LogEvent::Error(e.clone()));
+                return Err(e);
+            }
 
-        let mut cmd = Command::new(&bin_path);
+            let opts = crate::db_supervisor::DbStartupOptions {
+                engine: db_engine,
+                version,
+                bin_path: &bin_path,
+                port,
+                bind_address: &self.bind_address,
+                base_data_dir: &self.base_data_dir,
+            };
+            crate::db_supervisor::DbSupervisor::build_daemon_command(&opts, &data_dir)
+        } else {
+            let mut c = Command::new(&bin_path);
+            match service {
+                ServiceType::Apache => {
+                    c.args(["-D", "FOREGROUND"]);
+                }
+                ServiceType::Php => {
+                    // php-fpm
+                }
+                _ => {}
+            }
+            c
+        };
+
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        match service {
-            ServiceType::Apache => {
-                cmd.args(["-D", "FOREGROUND"]);
-            }
-            ServiceType::Mysql | ServiceType::Mariadb => {
-                cmd.arg(format!("--port={}", port));
-            }
-            ServiceType::Postgresql => {
-                cmd.args(["-p", &port.to_string()]);
-            }
-            ServiceType::Php => {
-                // php-fpm
-            }
-            ServiceType::Tool => {}
-        }
+        let cmd_str = format!(
+            "{} {}",
+            bin_path.display(),
+            cmd.get_args().map(|a| a.to_string_lossy()).collect::<Vec<_>>().join(" ")
+        );
+        self.add_log_event(LogEvent::CommandExecuted {
+            command: cmd_str.trim().to_string(),
+        });
 
         match cmd.spawn() {
             Ok(mut child) => {
@@ -300,8 +333,16 @@ impl ServiceManager {
         self.service_errors.remove(&service);
         if let Some(mut child) = self.active_processes.remove(&service) {
             self.add_log_event(LogEvent::Stopping { service });
-            let _ = child.kill();
-            let _ = child.wait();
+            if crate::db_supervisor::DbEngine::from_service_type(service).is_some() {
+                let _ = crate::db_supervisor::DbSupervisor::graceful_stop(
+                    service,
+                    &mut child,
+                    std::time::Duration::from_secs(10),
+                );
+            } else {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
             self.active_ports.remove(&service);
             self.add_log_event(LogEvent::Stopped { service });
             Ok(())
@@ -933,6 +974,54 @@ mod tests {
         let logs = sm.get_recent_logs();
         let has_crash_log = logs.iter().any(|l| matches!(&l.event, LogEvent::Error(ServiceError::PhpServerFailed { details, .. }) if details.contains("terminated unexpectedly")));
         assert!(has_crash_log, "Expected crash log after unexpected termination");
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_database_service_initialization_and_start() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp_dir = std::env::temp_dir().join("amp_test_db_start");
+        let bin_dir = temp_dir.join("bin").join("mariadb").join("11.4.3");
+        let data_dir = temp_dir.join("data");
+        let _ = fs::create_dir_all(&bin_dir);
+        let _ = fs::create_dir_all(&data_dir);
+
+        // Pre-create data/mariadb/mysql so it doesn't try running actual install-db in test
+        let _ = fs::create_dir_all(data_dir.join("mariadb").join("mysql"));
+
+        let mock_mariadbd = bin_dir.join("mariadbd");
+        let script = "#!/bin/sh\nsleep 10\n";
+        fs::write(&mock_mariadbd, script).unwrap();
+        let mut perms = fs::metadata(&mock_mariadbd).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&mock_mariadbd, perms).unwrap();
+
+        let mut sm = ServiceManager::new(temp_dir.join("bin"));
+        sm.set_data_dir(data_dir.clone());
+        sm.set_bind_address("0.0.0.0".to_string());
+
+        let start_res = sm.start_service(
+            ServiceType::Mariadb,
+            "11.4.3",
+            3307,
+            Some(mock_mariadbd.to_str().unwrap()),
+        );
+        assert!(start_res.is_ok(), "Service should start successfully");
+
+        // Verify command executed logged with custom bind-address and no-defaults
+        let logs = sm.get_recent_logs();
+        let exec_log = logs.iter().find(|l| matches!(&l.event, LogEvent::CommandExecuted { .. })).expect("Must have executed log");
+        if let LogEvent::CommandExecuted { command } = &exec_log.event {
+            assert!(command.contains("--no-defaults"));
+            assert!(command.contains("--bind-address=0.0.0.0"));
+            assert!(command.contains("--port=3307"));
+        }
+
+        // Test graceful stop
+        let stop_res = sm.stop_service(ServiceType::Mariadb);
+        assert!(stop_res.is_ok());
 
         let _ = fs::remove_dir_all(&temp_dir);
     }

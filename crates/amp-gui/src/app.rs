@@ -66,7 +66,10 @@ impl AmpApp {
             cc.egui_ctx.set_visuals(visuals);
         }
 
-        let service_manager = Arc::new(Mutex::new(ServiceManager::new(config.bin_dir.clone())));
+        let mut sm = ServiceManager::new(config.bin_dir.clone());
+        sm.set_data_dir(config.data_dir.clone());
+        sm.set_bind_address(config.bind_address.clone());
+        let service_manager = Arc::new(Mutex::new(sm));
 
         // Load local manifest if available
         let local_manifest_path = PathBuf::from("assets/versions.json");
@@ -680,12 +683,20 @@ impl eframe::App for AmpApp {
             match action {
                 SettingsAction::Save => {
                     let _ = self.config.save(&self.config_path);
+                    if let Ok(mut sm) = self.service_manager.lock() {
+                        sm.set_data_dir(self.config.data_dir.clone());
+                        sm.set_bind_address(self.config.bind_address.clone());
+                    }
                     self.settings_status = Some(self.i18n.t("settings_saved").to_string());
                     self.status_bar_message = Some((self.i18n.t("settings_saved").to_string(), false));
                 }
                 SettingsAction::ResetDefaults => {
                     self.config.reset_to_defaults();
                     let _ = self.config.save(&self.config_path);
+                    if let Ok(mut sm) = self.service_manager.lock() {
+                        sm.set_data_dir(self.config.data_dir.clone());
+                        sm.set_bind_address(self.config.bind_address.clone());
+                    }
                     self.i18n.set_language(&self.config.language);
                     self.settings_status = Some(self.i18n.t("defaults_restored").to_string());
                     self.status_bar_message = Some((self.i18n.t("defaults_restored").to_string(), false));
